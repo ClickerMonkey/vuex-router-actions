@@ -46,7 +46,7 @@ Installation via npm : `npm install --save vuex-router-actions`
 
 ## API
 
-#### actionsWatch
+### actionsWatch
 
 Watches the given actions and invokes the callbacks passed in the options of `VuexRouterActions`. If the result of an action is a promise - it is watched and immediately invokes `onActionStart` followed by `onActionResolve` or `onActionReject` and then `onActionEnd`. If the result of an action is not a promise then `onActionStart` and `onActionEnd` are invoked immediately. If there are no more watched actions being executed then `onActionsDone` is invoked after the last `onActionEnd`.
 
@@ -79,7 +79,7 @@ You can also pass in options as the 2nd argument of of `actionsWatch` to overrid
 })
 ```
 
-#### actionsLoading
+### actionsLoading
 
 Calls a mutation on a store when any of the passed actions are running and when they stop. This provides an easy way to signal to the user when something is loading, even a complex set of asynchronous actions.
 
@@ -116,7 +116,7 @@ Instead of a mutation you can optionally pass a function which is given a `conte
 )
 ```
 
-#### actionsCached
+### actionsCached
 
 Produces actions with cached results based on some cache key. The action will always run the first time unless the cache key returned `undefined`. The cached results of the action are "cleared" when a different key is returned for a given action.
 
@@ -150,7 +150,7 @@ By default the results of `getKey` are passed to `JSON.stringify` to make it an 
 })
 ```
 
-#### actionsCachedConditional
+### actionsCachedConditional
 
 Produces actions with cached results based on some condition. The action will always run the first time.
 
@@ -169,7 +169,7 @@ const store = new Vuex.Store({
 })
 ```
 
-#### actionsProtect
+### actionsProtect
 
 Creates "protection" actions. These are functions which return a truthy or falsy value and the action returned produces a Promise that is resolved or rejected. This is useful when creating actions which load data for a route. You can add protection actions before and/or after the loading actions so it can validate the route path and afterwards validate whether the user should be able to see the given route. If the protect action returns another promise that promise is passed through, and whether it resolves or rejects determines if the action stops or continues.
 
@@ -200,7 +200,7 @@ const component = {
 }
 ```
 
-#### actionBeforeRoute
+### actionBeforeRoute
 
 Dispatches an action in the store and waits for the action to finish before the routed component this is placed in is entered or updated (see `beforeRouteEnter` and `beforeRouteUpdate` in `vue-router`). If the action resolves the routed component will be entered, otherwise `getOtherwise` will be invoked to determine where the router should be redirected. `getOtherwise` by default returns false which simply stops routing. If it returned undefined it would proceed as normal. If it returned a string or a route object it would redirect to that route.
 
@@ -214,9 +214,34 @@ export default {
 }
 ```
 
-#### actionOptional
+### actionOptional
 
 Allows you to pass the results of a dispatch through this function and whether or not it resolves or rejects it won't stop from proceeding. This happens by returning a promise which always resolves. If the given promise is rejected then `resolveOnReject` is passed to the resolve function of the returned Promise.
+
+```javascript
+import VuexRouterActions, { actionsProtect, actionOptional } from 'vuex-router-actions'
+const store = new Vuex.Store({
+  plugins: [VuexRouterActions()],
+  actions: {
+    loadUser (context, user_id) {}, // returns promise which loads user data, also commits user to state
+    loadTask (context, task_id) {}, // returns promise which loads task data
+    loadUserTask (context, task_id) {}, // returns a promise which may or may not return the relationship between the user and the task
+
+    // for actionBeforeRoute the to route is passed
+    loadTaskPage ({dispatch}, to) {
+      return dispatch('loadUser', to.params.user)
+        .then(user => dispatch('hasUser'))
+        .then(hasUser => dispatch('loadTask', to.params.task))
+        .then(task => dispatch('canEditTask', task))
+        .then(userTask => actionOptional(dispatch('loadUserTask', to.params.task))) // <== HERE
+    },
+    ...actionsProtect({
+      hasUser ({state}) { return state.user && !state.user.disabled },
+      canEditTask ({state}, task) { return state.user.canEdit( task ) }
+    })
+  }
+})
+```
 
 ## LICENSE
 [MIT](https://opensource.org/licenses/MIT)
