@@ -180,17 +180,15 @@ const store = new Vuex.Store({
   actions: {
     loadUser (context, user_id) {}, // returns promise which loads user data, also commits user to state
     loadTask (context, task_id) {}, // returns promise which loads task data
-
-    // for actionBeforeRoute the to route is passed
-    loadTaskPage ({dispatch}, to) {
+    loadTaskPage ({dispatch}, to) { // for actionBeforeRoute the to route is passed
       return dispatch('loadUser', to.params.user)
         .then(user => dispatch('hasUser'))
         .then(hasUser => dispatch('loadTask', to.params.task))
-        .then(task => dispatch('canEditTask', task))
+        .then(task => dispatch('canViewTask', task))
     },
     ...actionsProtect({
-      hasUser ({state}) { return state.user && !state.user.disabled },
-      canEditTask ({state}, task) { return state.user.canEdit( task ) }
+      hasUser: ({state}) => state.user && !state.user.disabled,
+      canViewTask: ({state}, task) => state.user.canView( task )
     })
   }
 })
@@ -226,18 +224,16 @@ const store = new Vuex.Store({
     loadUser (context, user_id) {}, // returns promise which loads user data, also commits user to state
     loadTask (context, task_id) {}, // returns promise which loads task data
     loadUserTask (context, task_id) {}, // returns a promise which may or may not return the relationship between the user and the task
-
-    // for actionBeforeRoute the to route is passed
-    loadTaskPage ({dispatch}, to) {
+    loadTaskPage ({dispatch}, to) { // for actionBeforeRoute the to route is passed
       return dispatch('loadUser', to.params.user)
         .then(user => dispatch('hasUser'))
         .then(hasUser => dispatch('loadTask', to.params.task))
-        .then(task => dispatch('canEditTask', task))
+        .then(task => dispatch('canViewTask', task))
         .then(userTask => actionOptional(dispatch('loadUserTask', to.params.task))) // <== HERE
     },
     ...actionsProtect({
-      hasUser ({state}) { return state.user && !state.user.disabled },
-      canEditTask ({state}, task) { return state.user.canEdit( task ) }
+      hasUser: ({state}) => state.user && !state.user.disabled,
+      canViewTask: ({state}, task) => state.user.canView( task )
     })
   }
 })
