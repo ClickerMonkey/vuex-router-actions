@@ -8,13 +8,6 @@ This App will be a clone of Slack. Slack is a communication App with groups, cha
 This example will utilize Typescript but should easily be converted to plain Babel, JS, etc.
 The app will utilize `Vue`, `Vuex`, `VueRouter`, and `VuexRouterActions`
 
-**Contents**:
-- [Models](#models)
-- [State](#state)
-- [Routes](#routes)
-- [Router](#router)
-- [Store](#store)
-
 ## Project Structure
 
 - [Models.ts](#models)
