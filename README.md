@@ -1,6 +1,8 @@
 ## vuex-router-actions
 
-The library you've been waiting for to streamline complex Vuex actions and have fast and secure asynchronous routing in your app. Checkout [this example](https://github.com/ClickerMonkey/vuex-router-actions/blob/master/EXAMPLE.md) to see how this can all be used to create a Slack clone!
+The library you've been waiting for to streamline complex Vuex actions and have fast and secure asynchronous routing in your app. 
+
+**Checkout [this example](https://github.com/ClickerMonkey/vuex-router-actions/blob/master/EXAMPLE.md) to see how this library can be used to create a Slack clone!**
 
 ## Goals
 
