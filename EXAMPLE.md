@@ -151,6 +151,7 @@ import { DEBUG_OPTIONS } from './Debug'
 import { SlackState, getDefaultState } from './State'
 import { setters } from './mutations/Setters'
 import { auths } from './mutations/Auth'
+import { getters } from './actions/Getters'
 import { loaders } from './actions/Loaders'
 import { protects } from './actions/Protectors'
 import { pages } from './actions/Pages'
@@ -161,7 +162,8 @@ export const store = new VuexStore<SlackState>({
   plugins: [plugin],
   state: getDefaultState(),
   mutations: {
-    ...setters
+    ...setters,
+    ...auths
   },
   actions: actionsWatch({
     ...getters,
@@ -215,12 +217,13 @@ export default {
 
 ```vue
 <template>
-  <!-- user, user.groups, viewGroup -->
+  <!-- user, user.groups, viewGroup(), signOut() -->
 </template>
 <script>
-import { mapState } from 'vuex'
+import { mapState, mapMutations } from 'vuex'
 import { actionBeforeRoute } from 'vuex-router-actions'
 import { page } from './actions/Pages'
+import { auth } from './mutations/Auth'
 
 export default {
   ...actionBeforeRoute(page.HOME),
@@ -228,6 +231,7 @@ export default {
     ...mapState(['user'])
   },
   methods: {
+    ...mapMutations([auth.SIGN_OUT]),
     viewGroup(group) {
       this.$router.push('/' + group.id)
     }
@@ -240,7 +244,7 @@ export default {
 
 ```vue
 <template>
-  <!-- user, group, group.channels, viewChannel -->
+  <!-- user, group, group.channels, viewChannel() -->
 </template>
 <script>
 import { mapState } from 'vuex'
@@ -496,6 +500,28 @@ export const setters = {
   },
   [setter.LOADING] (state: SlackState, loading: boolean) {
     state.loading = loading
+  }
+}
+```
+
+## Auth
+
+```typescript
+// mutations/Auth.ts
+import { SlackState, getDefaultState } from '../State'
+import { store } from '../Store
+
+export const auth = {
+  SIGN_OUT: 'signOut',
+  SIGN_IN: 'signIn'
+}
+
+export const auths = {
+  [auth.SIGN_OUT] (state: SlackState) {
+    store.replaceState(getDefaultState)
+  },
+  [auth.SIGN_IN] (state: SlackState) {
+    // TODO takes username and password and does something with it. this might be better as an action
   }
 }
 ```
