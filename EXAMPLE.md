@@ -14,6 +14,7 @@ The app will utilize `Vue`, `Vuex`, `VueRouter`, and `VuexRouterActions`
 - [State.ts](#state)
 - [Router.ts](#router)
 - [Store.ts](#store)
+- [Debug.ts](#debug)
 - **pages/**
   - [SignInPage.vue](#signinpage-vue)
   - [HomePage.vue](#homepage-vue)
@@ -174,6 +175,30 @@ export const store = new VuexStore<SlackState>({
 })
 ```
 
+## Debug
+
+```typescript
+// Debug.ts
+export const DEBUG = process.env.NODE_ENV !== 'production'
+
+export const DEBUG_FUNCTION = (name: string) => {
+  return function() {
+    console.debug(name, arguments)
+  }
+}
+
+export const DEBUG_OPTIONS = !DEBUG
+  ? undefined
+  : {
+    onActionStart: DEBUG_FUNCTION('onActionStart'),
+    onActionResolve: DEBUG_FUNCTION('onActionResolve'),
+    onActionReject: DEBUG_FUNCTION('onActionReject'),
+    onActionEnd: DEBUG_FUNCTION('onActionEnd'),
+    onActionsDone: DEBUG_FUNCTION('onActionsDone'),
+  }
+
+```
+
 ## App.vue
 
 ```vue
@@ -199,13 +224,16 @@ export default {
 
 ```vue
 <template>
-  <!-- signIn() -->
+  <!-- signIn({username, password}) -->
 </template>
 <script>
 import { mapMutations } from 'vuex'
 import { auth } from './mutations/Auth'
 
 export default {
+  data() {
+    return { username: '', password: '' }
+  },
   methods: {
     ...mapMutations([auth.SIGN_IN])
   }
