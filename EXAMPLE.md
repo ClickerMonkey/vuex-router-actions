@@ -462,7 +462,7 @@ export const loaders = actionsCached({
 
 ```typescript
 // actions/Getters.ts
-import { actionsCacheResults } from 'vuex-router-actions'
+import { actionsCachedResults } from 'vuex-router-actions'
 
 export const getter = {
   USER: 'getUser',
@@ -471,27 +471,28 @@ export const getter = {
   MESSAGES: 'getMessages'
 }
 
-export const getters = actionsCacheResults({
+export const getters = actionsCachedResults({
   [getter.USER]: {
-    getKey: (context, id) => id,
+    getResultKey: (context, id) => id,
     handler: ({dispatch}, id) => {
       // TODO return Promise which resolves a User instance with the given ID
     }
   },
   [getter.GROUP]: {
-    getKey: (context, id) => id,
+    getKey: ({state}) => state.user_id, // when user changes, clear group cache
+    getResultKey: (context, id) => id,
     handler: ({dispatch}, id) => {
       // TODO return Promise which resolves a Group instance with the given ID
     }
   },
   [getter.CHANNEL]: {
-    getKey: (context, id) => id,
+    getResultKey: (context, id) => id,
     handler: ({dispatch}, id) => {
       // TODO return Promise which resolves a Channel instance with the given ID
     }
   },
   [getter.MESSAGES]: {
-    getKey: (context, channel) => channel.id,
+    getResultKey: (context, channel) => channel.id,
     handler: ({dispatch}, channel) => {
       // TODO return Promise which resolves a Message[] array with the last N messages in the given channel
     }
