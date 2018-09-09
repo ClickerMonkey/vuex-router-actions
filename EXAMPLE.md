@@ -26,7 +26,7 @@ The app will utilize `Vue`, `Vuex`, `VueRouter`, and `VuexRouterActions`
   - [Getters.ts](#getters)
 - **mutations/**
   - [Setters.ts](#setters)
-  - [Auth.ts]
+  - [Auth.ts](#auth)
 
 ## Models
 
