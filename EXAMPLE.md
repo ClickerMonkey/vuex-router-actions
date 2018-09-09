@@ -15,13 +15,32 @@ The app will utilize `Vue`, `Vuex`, `VueRouter`, and `VuexRouterActions`
 - [Router](#router)
 - [Store](#store)
 
+## Project Structure
+
+- [Models.ts](#models)
+- [SlackState.ts](#state)
+- [Router.ts](#router)
+- [Store.ts](#store)
+- **pages/**
+  - [SignInPage.vue]
+  - [HomePage.vue]
+  - [GroupPage.vue]
+  - [ChannlePage.vue]
+- **actions/**
+  - [Loaders.ts]
+  - [Protectors.ts]
+  - [Pages.ts]
+- **mutations/**
+  - [Setters.ts]
+  - [Auth.ts]
+
 ## Models
 
 Lets get the models out of the way so we all understand the structure of this app:
 
 ```typescript
 // Models.ts
-class User {
+export class User {
   id: string
   name: string
   picture: string
@@ -29,7 +48,7 @@ class User {
   // loaded through actions
   groups: Group[]
 }
-class Group {
+export class Group {
   id: string
   name: string
   user_ids: string[]
@@ -38,14 +57,14 @@ class Group {
   users: User[]
   channels: Channel[]
 }
-class Channel {
+export class Channel {
   id: string
   name: string
   user_ids: string[]
   // loaded through actions
   users: User[]
 }
-class Message[] {
+export class Message[] {
   id: string
   message: string
   user_id: string
@@ -133,8 +152,8 @@ import Vuex from 'vuex'
 import VuexRouterActions, { actionsWatch } from 'vuex-router-actions'
 
 import { DEBUG_OPTIONS } from './Debug'
-import { SlackState, getDefaultState } from './SlackState
-import { setters } from './mutations/Setters
+import { SlackState, getDefaultState } from './SlackState'
+import { setters } from './mutations/Setters'
 import { loaders } from './actions/Loaders'
 import { protectors } from './actions/Protectors'
 import { pages } from './actions/Pages'
