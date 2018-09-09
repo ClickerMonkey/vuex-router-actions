@@ -35,21 +35,32 @@ export interface ActionCacheConditionals<S, R>
   [key: string]: ActionCacheConditional<S, R>
 }
 
-export type ActionRouteOtherwise = (to, from, rejectReason) => any
+export type ActionRouteOtherwise = (to, from, rejectReason, store, action) => any
 
-/**
- * Options which can be passed to
- *
- */
-export interface ActionsPluginOptions
+export type ActionLoadingHandler<S, R> = (injectee: ActionContext<S, R>, loading: boolean) => any
+
+export type ActionLoadingInput<S, R> = string | ActionLoadingHandler<S, R>
+
+export interface ActionsPluginOptions extends ActionsWatchOptions // & ActionsCacheOptions
 {
-  onActionStart (action: string, num: number)
-  onActionReject (action: string, num: number, reason: any)
-  onActionResolve (action: string, num: number, resolved: any)
-  onActionEnd (action: string, num: number, result: any, resolved: boolean)
-  onActionsDone ()
   createCacheKey (input: any): string
 }
+
+export interface ActionsWatchOptions
+{
+  onActionStart <S, R>(action: string, num: number, injectee: ActionContext<S, R>, payload: any)
+  onActionReject <S, R>(action: string, num: number, injectee: ActionContext<S, R>, payload: any, reason: any)
+  onActionResolve <S, R>(action: string, num: number, injectee: ActionContext<S, R>, payload: any, resolved: any)
+  onActionEnd <S, R>(action: string, num: number, injectee: ActionContext<S, R>, payload: any, result: any, resolved: boolean)
+  onActionsDone <S, R>(injectee: ActionContext<S, R>)
+}
+
+export interface ActionsCacheOptions
+{
+  createCacheKey (input: any): string
+}
+
+
 
 const ASSERT_STORE = 'VuexRouterActions must be passed as a plugin to one store'
 const ASSERT_HANDLER = 'Cached action handler must be a function.'
@@ -78,8 +89,8 @@ let actionDone: number = 0
  * ```javascript
  * import VuexRouterActions, { actionsWatch } from 'vuex-router-actions'
  * const actionsPlugin = VuexRouterActions({
- *   onActionStart (action, num) {},
- *   onActionEnd (action, num, result, resolved) {}
+ *   onActionStart (action, num, context, payload) {},
+ *   onActionEnd (action, num, contact, payload, result, resolved) {}
  * })
  * const store = new Vuex.Store({
  *    plugins: [actionsPlugin],
@@ -96,21 +107,14 @@ let actionDone: number = 0
  */
 export default function(_options?: Partial<ActionsPluginOptions>)
 {
+  parseWatchOptions(options, options, _options)
+  parseCacheOptions(options, options, _options)
+
   return function(_store: Store<any>)
   {
     assert(store === undefined, ASSERT_STORE)
 
     store = _store
-
-    if (_options)
-    {
-      options.onActionStart = _options.onActionStart || options.onActionStart
-      options.onActionReject = _options.onActionReject || options.onActionReject
-      options.onActionResolve = _options.onActionResolve || options.onActionResolve
-      options.onActionEnd = _options.onActionEnd || options.onActionEnd
-      options.onActionsDone = _options.onActionsDone || options.onActionsDone
-      options.createCacheKey = _options.createCacheKey || options.createCacheKey
-    }
   }
 }
 
@@ -118,7 +122,7 @@ export default function(_options?: Partial<ActionsPluginOptions>)
  * Destroys the plugin so it can be added to another store. This should only
  * be used for testing purposes.
  */
-export function actionsDestroy()
+export function actionsDestroy(): void
 {
   store = defaultStore
   options = actionsDefaultOptions()
@@ -129,13 +133,13 @@ export function actionsDestroy()
 /**
  * Generates the default options for the plugin.
  */
-export function actionsDefaultOptions()
+export function actionsDefaultOptions(): ActionsPluginOptions
 {
   return {
-    onActionStart: (action: string, num: number) => {},
-    onActionReject: (action: string, num: number, reason: any) => {},
-    onActionResolve: (action: string, num: number, resolved: any) => {},
-    onActionEnd: (action: string, num: number, result: any, resolved: boolean) => {},
+    onActionStart: () => {},
+    onActionReject: () => {},
+    onActionResolve: () => {},
+    onActionEnd: () => {},
     onActionsDone: () => {},
     createCacheKey: (input: any) => JSON.stringify(input)
   }
@@ -157,7 +161,7 @@ export function actionsDefaultOptions()
  * import { actionBeforeRoute } from 'vuex-router-actions'
  *
  * export default {
- *   ...actionBeforeRoute('loadMyPage', (to, from, rejectReason) => {
+ *   ...actionBeforeRoute('loadMyPage', (to, from, rejectReason, store, action) => {
  *      return '/path/i/can/goto/perhaps/previous/which/also/does/check'
  *   })
  * }
@@ -178,7 +182,7 @@ export function actionBeforeRoute (action: string, getOtherwise: ActionRouteOthe
         next()
       },
       (reason) => {
-        next(getOtherwise(to, from, reason))
+        next(getOtherwise(to, from, reason, store, action))
       }
     )
   }
@@ -275,9 +279,13 @@ export function actionsCachedConditional <S, R>(actions: ActionCacheConditionals
  * ```
  *
  * @param actions The actions to cache.
+ * @param cache Cache options to override the global options passed to the
+ *    plugin. If an option is not passed in the input it defaults to the
+ *    equivalent plugin option.
  */
-export function actionsCached <S, R>(actions: ActionCaches<S, S>): ActionTree<S, S>
+export function actionsCached <S, R>(actions: ActionCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>
 {
+  const cacheOptions = parseCacheOptions({}, options, cache)
   const out = Object.create(null)
   const cachedResults = Object.create(null)
   const cachedKeys = Object.create(null)
@@ -292,7 +300,7 @@ export function actionsCached <S, R>(actions: ActionCaches<S, S>): ActionTree<S,
 
     out[key] = function(context, payload)
     {
-      const cacheKey = options.createCacheKey(getKey.call(this, context, payload))
+      const cacheKey = cacheOptions.createCacheKey(getKey.call(this, context, payload))
 
       if (cacheKey !== cachedKeys[key])
       {
@@ -334,14 +342,34 @@ export function actionsCached <S, R>(actions: ActionCaches<S, S>): ActionTree<S,
  * ```
  *
  * @param actions The actions to watch.
+ * @param watch Watch options to override the global options passed to the
+ *    plugin. If an option is not passed in the input it defaults to the
+ *    equivalent plugin option.
  */
-export function actionsWatch <S, R>(actions: ActionTree<S, S>): ActionTree<S, S>
+export function actionsWatch <S, R>(actions: ActionTree<S, S>, watch?: Partial<ActionsWatchOptions>): ActionTree<S, S>
 {
-  const checkDone = (num: number) =>
+  const watchOptions = parseWatchOptions({}, options, watch)
+  const localDoneGiven = watch && watch.onActionsDone
+  let localDone: number = 0
+  let localNum: number = 0
+
+  const addDone = () =>
   {
-    if (++actionDone === num)
+    if (localDoneGiven) return ++localDone
+    else return ++actionDone
+  }
+
+  const getNum = () =>
+  {
+    if (localDoneGiven) return ++localNum
+    else return ++actionNum
+  }
+
+  const checkDone = (num: number, context) =>
+  {
+    if (addDone() === num)
     {
-      options.onActionsDone()
+      watchOptions.onActionsDone(context)
     }
   }
 
@@ -350,30 +378,30 @@ export function actionsWatch <S, R>(actions: ActionTree<S, S>): ActionTree<S, S>
     return function (context, payload)
     {
       const result = action.call( this, context, payload )
-      const num: number = ++actionNum
+      const num: number = getNum()
 
       if (result instanceof Promise)
       {
-        options.onActionStart(key, num)
+        watchOptions.onActionStart(key, num, context, payload)
 
         result.then(
           (resolved) => {
-            options.onActionResolve(key, num, resolved)
-            options.onActionEnd(key, num, resolved, true)
-            checkDone(num)
+            watchOptions.onActionResolve(key, num, context, payload, resolved)
+            watchOptions.onActionEnd(key, num, context, payload, resolved, true)
+            checkDone(num, context)
           },
           (reason) => {
-            options.onActionReject(key, num, reason)
-            options.onActionEnd(key, num, reason, false)
-            checkDone(num)
+            watchOptions.onActionReject(key, num, context, payload, reason)
+            watchOptions.onActionEnd(key, num, context, payload, reason, false)
+            checkDone(num, context)
           }
         )
       }
       else
       {
-        options.onActionStart(key, num)
-        options.onActionEnd(key, num, result, true)
-        checkDone(num)
+        watchOptions.onActionStart(key, num, context, payload)
+        watchOptions.onActionEnd(key, num, context, payload, result, true)
+        checkDone(num, context)
       }
 
       return result
@@ -460,7 +488,7 @@ export function actionsProtect <S, R>(actions: ActionTree<S, S>): ActionTree<S, 
  *    whether an action passed is currently running.
  * @param actions The actions to watch.
  */
-export function actionsLoading <S, R>(mutation: string, actions: ActionTree<S, S>): ActionTree<S, S>
+export function actionsLoading <S, R>(input: ActionLoadingInput<S, S>, actions: ActionTree<S, S>): ActionTree<S, S>
 {
   let loadingCount: number = 0
   let loading: boolean = false
@@ -470,13 +498,16 @@ export function actionsLoading <S, R>(mutation: string, actions: ActionTree<S, S
     loadingCount++
   }
 
-  const end = () =>
+  const end = (context) =>
   {
-    loadingCount--
-    check()
+    return () =>
+    {
+      loadingCount--
+      check(context)
+    }
   }
 
-  const check = () =>
+  const check = (context) =>
   {
     let loadingNow: boolean = loadingCount > 0
 
@@ -484,7 +515,16 @@ export function actionsLoading <S, R>(mutation: string, actions: ActionTree<S, S
     {
       assert(store !== undefined, ASSERT_STORE)
 
-      store.commit(mutation, loading = loadingNow)
+      loading = loadingNow
+
+      if (isActionLoadingMutation(input))
+      {
+        store.commit(input, loading)
+      }
+      else if (isActionLoadingHandler(input))
+      {
+        input(context, loading)
+      }
     }
   }
 
@@ -496,14 +536,46 @@ export function actionsLoading <S, R>(mutation: string, actions: ActionTree<S, S
 
       if (result instanceof Promise)
       {
+        const ender = end(context)
+
         start()
-        result.then(end, end)
-        check()
+        result.then(ender, ender)
+        check(context)
       }
 
       return result
     }
   })
+}
+
+// Parses options input and given defaults and out returns a complete options object
+function parseWatchOptions (out: Partial<ActionsWatchOptions>, defaults: ActionsWatchOptions, input?: Partial<ActionsWatchOptions>): ActionsWatchOptions
+{
+  if (input)
+  {
+    out.onActionStart = input.onActionStart || defaults.onActionStart
+    out.onActionReject = input.onActionReject || defaults.onActionReject
+    out.onActionResolve = input.onActionResolve || defaults.onActionResolve
+    out.onActionEnd = input.onActionEnd || defaults.onActionEnd
+    out.onActionsDone = input.onActionsDone || defaults.onActionsDone
+
+    return out as ActionsWatchOptions
+  }
+
+  return defaults
+}
+
+// Parses options input and given defaults and out returns a complete options object
+function parseCacheOptions (out: Partial<ActionsCacheOptions>, defaults: ActionsCacheOptions, input?: Partial<ActionsCacheOptions>): ActionsCacheOptions
+{
+  if (input)
+  {
+    out.createCacheKey = input.createCacheKey || defaults.createCacheKey
+
+    return out as ActionsCacheOptions
+  }
+
+  return defaults
 }
 
 // Iterates Vuex action input and returns a similar structure but with the handler replaced.
@@ -553,6 +625,18 @@ function isActionHandler <S, R>(x: any): x is ActionHandler<S, R>
 function isActionObject <S, R>(x: any): x is ActionObject<S, R>
 {
   return typeof x === 'object' && typeof x.handler === 'function'
+}
+
+// Determines if the given input is a mutation name.
+function isActionLoadingMutation (x: any): x is string
+{
+  return typeof x === 'string'
+}
+
+// Determines if the given input is a loading handler.
+function isActionLoadingHandler <S, R>(x: any): x is ActionLoadingHandler<S, R>
+{
+  return typeof x === 'function'
 }
 
 // Asserts the expecation, and when it's fasly throws an error.

@@ -19,17 +19,20 @@ export interface ActionCacheConditional<S, R> {
 export interface ActionCacheConditionals<S, R> {
     [key: string]: ActionCacheConditional<S, R>;
 }
-export declare type ActionRouteOtherwise = (to: any, from: any, rejectReason: any) => any;
-/**
- * Options which can be passed to
- *
- */
-export interface ActionsPluginOptions {
-    onActionStart(action: string, num: number): any;
-    onActionReject(action: string, num: number, reason: any): any;
-    onActionResolve(action: string, num: number, resolved: any): any;
-    onActionEnd(action: string, num: number, result: any, resolved: boolean): any;
-    onActionsDone(): any;
+export declare type ActionRouteOtherwise = (to: any, from: any, rejectReason: any, store: any, action: any) => any;
+export declare type ActionLoadingHandler<S, R> = (injectee: ActionContext<S, R>, loading: boolean) => any;
+export declare type ActionLoadingInput<S, R> = string | ActionLoadingHandler<S, R>;
+export interface ActionsPluginOptions extends ActionsWatchOptions {
+    createCacheKey(input: any): string;
+}
+export interface ActionsWatchOptions {
+    onActionStart<S, R>(action: string, num: number, injectee: ActionContext<S, R>, payload: any): any;
+    onActionReject<S, R>(action: string, num: number, injectee: ActionContext<S, R>, payload: any, reason: any): any;
+    onActionResolve<S, R>(action: string, num: number, injectee: ActionContext<S, R>, payload: any, resolved: any): any;
+    onActionEnd<S, R>(action: string, num: number, injectee: ActionContext<S, R>, payload: any, result: any, resolved: boolean): any;
+    onActionsDone<S, R>(injectee: ActionContext<S, R>): any;
+}
+export interface ActionsCacheOptions {
     createCacheKey(input: any): string;
 }
 /**
@@ -43,8 +46,8 @@ export interface ActionsPluginOptions {
  * ```javascript
  * import VuexRouterActions, { actionsWatch } from 'vuex-router-actions'
  * const actionsPlugin = VuexRouterActions({
- *   onActionStart (action, num) {},
- *   onActionEnd (action, num, result, resolved) {}
+ *   onActionStart (action, num, context, payload) {},
+ *   onActionEnd (action, num, contact, payload, result, resolved) {}
  * })
  * const store = new Vuex.Store({
  *    plugins: [actionsPlugin],
@@ -68,14 +71,7 @@ export declare function actionsDestroy(): void;
 /**
  * Generates the default options for the plugin.
  */
-export declare function actionsDefaultOptions(): {
-    onActionStart: (action: string, num: number) => void;
-    onActionReject: (action: string, num: number, reason: any) => void;
-    onActionResolve: (action: string, num: number, resolved: any) => void;
-    onActionEnd: (action: string, num: number, result: any, resolved: boolean) => void;
-    onActionsDone: () => void;
-    createCacheKey: (input: any) => string;
-};
+export declare function actionsDefaultOptions(): ActionsPluginOptions;
 /**
  * Dispatches an action in the store and waits for the action to finish before
  * the routed component this is placed in is entered or updated (see
@@ -92,7 +88,7 @@ export declare function actionsDefaultOptions(): {
  * import { actionBeforeRoute } from 'vuex-router-actions'
  *
  * export default {
- *   ...actionBeforeRoute('loadMyPage', (to, from, rejectReason) => {
+ *   ...actionBeforeRoute('loadMyPage', (to, from, rejectReason, store, action) => {
  *      return '/path/i/can/goto/perhaps/previous/which/also/does/check'
  *   })
  * }
@@ -159,8 +155,11 @@ export declare function actionsCachedConditional<S, R>(actions: ActionCacheCondi
  * ```
  *
  * @param actions The actions to cache.
+ * @param cache Cache options to override the global options passed to the
+ *    plugin. If an option is not passed in the input it defaults to the
+ *    equivalent plugin option.
  */
-export declare function actionsCached<S, R>(actions: ActionCaches<S, S>): ActionTree<S, S>;
+export declare function actionsCached<S, R>(actions: ActionCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>;
 /**
  * Watches the given actions and invokes the callbacks passed in the options
  * of `VuexRouterActions`. If the result of an action is a promise - it is
@@ -171,7 +170,13 @@ export declare function actionsCached<S, R>(actions: ActionCaches<S, S>): Action
  * invoked after the last `onActionEnd`.
  *
  * ```javascript
+ * const plugin = VuexRouterActions({
+ *    onActionStart (action, num) {},
+ *    onActionEnd (action, num, result, resolved) {}
+ * })
+ *
  * const store = new Vuex.Store({
+ *    plugins: [plugin],
  *    actions: {
  *      ...actionsWatch({
  *        loadThis (context, payload) {},
@@ -182,8 +187,11 @@ export declare function actionsCached<S, R>(actions: ActionCaches<S, S>): Action
  * ```
  *
  * @param actions The actions to watch.
+ * @param watch Watch options to override the global options passed to the
+ *    plugin. If an option is not passed in the input it defaults to the
+ *    equivalent plugin option.
  */
-export declare function actionsWatch<S, R>(actions: ActionTree<S, S>): ActionTree<S, S>;
+export declare function actionsWatch<S, R>(actions: ActionTree<S, S>, watch?: Partial<ActionsWatchOptions>): ActionTree<S, S>;
 /**
  * Creates "protection" actions. These are functions which return a truthy or
  * falsy value and the action returned produces a Promise that is resolved or
@@ -251,4 +259,4 @@ export declare function actionsProtect<S, R>(actions: ActionTree<S, S>): ActionT
  *    whether an action passed is currently running.
  * @param actions The actions to watch.
  */
-export declare function actionsLoading<S, R>(mutation: string, actions: ActionTree<S, S>): ActionTree<S, S>;
+export declare function actionsLoading<S, R>(input: ActionLoadingInput<S, S>, actions: ActionTree<S, S>): ActionTree<S, S>;

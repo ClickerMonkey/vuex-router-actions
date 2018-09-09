@@ -53,8 +53,8 @@ Watches the given actions and invokes the callbacks passed in the options of `Vu
 ```javascript
 import VuexRouterActions, { actionsWatch } from 'vuex-router-actions'
 const plugin = VuexRouterActions({
-  onActionStart (action, num) {},
-  onActionEnd (action, num, result, resolved) {}
+  onActionStart (action, num, context, payload) {},
+  onActionEnd (action, num, context, payload, result, resolved) {}
 })
 const store = new Vuex.Store({
   plugins: [plugin],
@@ -67,13 +67,26 @@ const store = new Vuex.Store({
 })
 ```
 
+You can also pass in options as the 2nd argument of of `actionsWatch` to override any options passed to the plugin:
+
+```javascript
+...actionsWatch({
+  loadThis (context, payload) {},
+  loadThat (context, payload) {} // return a Promise
+}, {
+  onActionStart (action, num, context, payload) {},
+  onActionEnd (action, num, context, payload, result, resolved) {}
+})
+```
+
 #### actionsLoading
 
 Calls a mutation on a store when any of the passed actions are running and when they stop. This provides an easy way to signal to the user when something is loading, even a complex set of asynchronous actions.
 
 ```javascript
-import { actionsLoading } from 'vuex-router-actions'
+import VuexRouterActions, { actionsLoading } from 'vuex-router-actions'
 const store = new Vuex.Store({
+  plugins: [VuexRouterActions()],
   state: {
     loading: false
   },
@@ -91,13 +104,26 @@ const store = new Vuex.Store({
 })
 ```
 
+Instead of a mutation you can optionally pass a function which is given a `context` and the `loading` flag.
+
+```javascript
+...actionsLoading(
+  (context, loading) => context.commit('setLoading', loading),
+  {
+    page1 (context, payload) {},
+    page2 (context, payload) {}
+  }
+)
+```
+
 #### actionsCached
 
 Produces actions with cached results based on some cache key. The action will always run the first time unless the cache key returned `undefined`. The cached results of the action are "cleared" when a different key is returned for a given action.
 
 ```javascript
-import { actionsCached } from 'vuex-router-actions'
+import VuexRouterActions, { actionsCached } from 'vuex-router-actions'
 const store = new Vuex.Store({
+  plugins: [VuexRouterActions()],
   actions: {
     ...actionsCached({
       loadPage: {
@@ -109,13 +135,29 @@ const store = new Vuex.Store({
 })
 ```
 
+By default the results of `getKey` are passed to `JSON.stringify` to make it an easily comparable value. If you want to override this functionality you can pass `createCacheKey (key: any): string` to the plugin options or as the second argument to actionsCached:
+
+```javascript
+...actionsCached({
+  loadPage: {
+    getKey: (context, payload) => payload, // look at store, getters, payload, etc
+    handler: (context, payload) => null // some result that can be cached
+  }
+}, {
+  createCacheKey(key) { // the keys for these actions are arrays, we will join them to produce a string.
+    return key.join('-')
+  }
+})
+```
+
 #### actionsCachedConditional
 
 Produces actions with cached results based on some condition. The action will always run the first time.
 
 ```javascript
-import { actionsCachedConditional } from 'vuex-router-actions'
+import VuexRouterActions, { actionsCachedConditional } from 'vuex-router-actions'
 const store = new Vuex.Store({
+  plugins: [VuexRouterActions()],
   actions: {
     ...actionsCachedConditional({
       loadPage: {
@@ -132,8 +174,9 @@ const store = new Vuex.Store({
 Creates "protection" actions. These are functions which return a truthy or falsy value and the action returned produces a Promise that is resolved or rejected. This is useful when creating actions which load data for a route. You can add protection actions before and/or after the loading actions so it can validate the route path and afterwards validate whether the user should be able to see the given route. If the protect action returns another promise that promise is passed through, and whether it resolves or rejects determines if the action stops or continues.
 
 ```javascript
-import { actionsProtect, actionBeforeRoute } from 'vuex-router-actions'
+import VuexRouterActions, { actionsProtect, actionBeforeRoute } from 'vuex-router-actions'
 const store = new Vuex.Store({
+  plugins: [VuexRouterActions()],
   actions: {
     loadUser (context, user_id) {}, // returns promise which loads user data, also commits user to state
     loadTask (context, task_id) {}, // returns promise which loads task data
@@ -165,7 +208,7 @@ Dispatches an action in the store and waits for the action to finish before the 
 // MyPage.vue
 import { actionBeforeRoute } from 'vuex-router-actions'
 export default {
- ...actionBeforeRoute('loadMyPage', (to, from, rejectReason) => {
+ ...actionBeforeRoute('loadMyPage', (to, from, rejectReason, store, action) => {
     return '/path/i/can/goto/perhaps/previous/which/also/does/check'
  })
 }

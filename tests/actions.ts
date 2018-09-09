@@ -78,6 +78,44 @@ describe('actions', function()
     expect(store.state.loading).to.be.true
   })
 
+  it('actionsLoading handler', function(done)
+  {
+    const plugin = VuexRouterActions()
+
+    type TestStore = {
+      loading: boolean
+    }
+
+    const store = new Vuex.Store<TestStore>({
+      plugins: [plugin],
+      state: {
+        loading: false
+      },
+      mutations: {
+        setLoading (state, loading) {
+          state.loading = loading
+        }
+      },
+      actions: {
+        ...actionsLoading(
+          (context, loading) => context.commit('setLoading', loading),
+          {
+            loader: actionTimeout(2)
+          }
+        )
+      }
+    })
+
+    expect(store.state.loading).to.be.false
+
+    store.dispatch('loader').then(() => {
+      expect(store.state.loading).to.be.false
+      done()
+    })
+
+    expect(store.state.loading).to.be.true
+  })
+
   it('actionsCachedConditional', function()
   {
     const plugin = VuexRouterActions()
@@ -165,6 +203,54 @@ describe('actions', function()
     expect(store.state.times).to.equal(2)
   })
 
+  it('actionsCached custom', function()
+  {
+    const plugin = VuexRouterActions()
+
+    type TestStore = {
+      times: number,
+      id: string
+    }
+
+    const store = new Vuex.Store<TestStore>({
+      plugins: [plugin],
+      state: {
+        times: 0,
+        id: 'x'
+      },
+      mutations: {
+        addTimes (state) {
+          state.times++
+        },
+        setId (state, id) {
+          state.id = id
+        }
+      },
+      actions: {
+        ...actionsCached({
+          updateTimes: {
+            getKey: ({state}, payload) => payload,
+            handler: ({commit}) => commit('addTimes')
+          }
+        }, {
+          createCacheKey (x: any): string {
+            return x.length
+          }
+        })
+      }
+    })
+
+    expect(store.state.times).to.equal(0)
+    store.dispatch('updateTimes', [1, 2, 3])
+    expect(store.state.times).to.equal(1)
+    store.dispatch('updateTimes', [4, 5, 6])
+    expect(store.state.times).to.equal(1)
+    store.dispatch('updateTimes', [1, 2])
+    expect(store.state.times).to.equal(2)
+    store.dispatch('updateTimes', [3, 4])
+    expect(store.state.times).to.equal(2)
+  })
+
   it('actionsWatch', function(done)
   {
     let started = 0
@@ -208,6 +294,110 @@ describe('actions', function()
 
     expect(started).to.equal(2)
     expect(ended).to.equal(1)
+  })
+
+  it('actionsWatch custom', function(done)
+  {
+    let pluginStarted = 0
+    let pluginEnded = 0
+    let watchEnded = 0
+
+    const plugin = VuexRouterActions({
+      onActionStart (key, num, context, payload) {
+        pluginStarted++
+      },
+      onActionEnd (key, num, context, payload) {
+        pluginEnded++
+      }
+    })
+
+    type TestStore = {}
+
+    const store = new Vuex.Store<TestStore>({
+      plugins: [plugin],
+      actions: {
+        ...actionsWatch({
+          immediate: (context, payload) => 456,
+          promised: actionTimeout(10)
+        }, {
+          onActionEnd(key, num, context, payload) {
+            watchEnded++
+          }
+        })
+      }
+    })
+
+    expect(pluginStarted).to.equal(0)
+    expect(pluginEnded).to.equal(0)
+    expect(watchEnded).to.equal(0)
+
+    store.dispatch('immediate')
+
+    expect(pluginStarted).to.equal(1)
+    expect(pluginEnded).to.equal(0)
+    expect(watchEnded).to.equal(1)
+
+    store.dispatch('promised')
+      .then(() => {
+        expect(pluginStarted).to.equal(2)
+        expect(pluginEnded).to.equal(0)
+        expect(watchEnded).to.equal(2)
+        done()
+      })
+
+    expect(pluginStarted).to.equal(2)
+    expect(pluginEnded).to.equal(0)
+    expect(watchEnded).to.equal(1)
+  })
+
+  it('actionsWatch localDone', function(done)
+  {
+    let pluginDone = 0
+    let localDone = 0
+
+    const plugin = VuexRouterActions({
+      onActionsDone() {
+        pluginDone++
+      }
+    })
+
+    type TestStore = {}
+
+    const store = new Vuex.Store<TestStore>({
+      plugins: [plugin],
+      actions: {
+        ...actionsWatch({
+          pluginAction: actionTimeout(5)
+        }),
+        ...actionsWatch({
+          localAction: actionTimeout(10)
+        }, {
+          onActionsDone() {
+            localDone++
+          }
+        })
+      }
+    })
+
+    expect(pluginDone).to.equal(0)
+    expect(localDone).to.equal(0)
+
+    const p1 = store.dispatch('pluginAction')
+    const p2 = store.dispatch('localAction')
+
+    expect(pluginDone).to.equal(0)
+    expect(localDone).to.equal(0)
+
+    p1.then(() => {
+      expect(pluginDone).to.equal(1)
+      expect(localDone).to.equal(0)
+    })
+
+    p2.then(() => {
+      expect(pluginDone).to.equal(1)
+      expect(localDone).to.equal(1)
+      done()
+    })
   })
 
   it('actionsProtect', function(done)
