@@ -30,6 +30,7 @@ The library you've been waiting for to streamline complex Vuex actions and have 
   - [actionsLoading](#actionsloading)
   - [actionsCached](#actionscached)
   - [actionsCachedConditional](#actionscachedconditional)
+  - [actionsCachedResults](#actionscachedresults)
   - [actionsProtect](#actionsprotect)
   - [actionBeforeRoute](#actionbeforeroute)
   - [actionOptional](#actionoptional)
@@ -166,6 +167,23 @@ const store = new Vuex.Store({
       }
     })
   }
+})
+```
+
+### actionsCachedResults
+
+Produces actions with multiple cached results. Each action has a `getKey` function which is optional - when the result of that function changes it clears the cache for all the results for that action. Each action has a required `getResultKey` function which is unique to that action call - and if that key has not ran for that action it is ran, otherwise the cached result is returned.
+
+```javascript
+import VuexRouterActions, { actionsCachedResults } from 'vuex-router-actions'
+const store = new Vuex.Store<TestStore>({
+  ...actionsCachedResults({
+    getGroupUser: {
+      getKey: ({state}) => state.group.id, // When the group id changes, the cached results clear
+      getResultKey: (context, user_id) => user_id,
+      handler: ({dispatch, state}, user_id) => null // TODO Return User instance relative to the given group
+    }
+  })
 })
 ```
 

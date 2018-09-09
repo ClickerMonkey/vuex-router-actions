@@ -12,6 +12,14 @@ export interface ActionCache<S, R> {
 export interface ActionCaches<S, R> {
     [key: string]: ActionCache<S, R>;
 }
+export interface ActionResultCache<S, R> {
+    getKey?: (injectee: ActionContext<S, R>, payload: any) => any;
+    getResultKey: (injectee: ActionContext<S, R>, payload: any) => any;
+    handler: ActionHandler<S, R>;
+}
+export interface ActionResultCaches<S, R> {
+    [key: string]: ActionResultCache<S, R>;
+}
 export interface ActionCacheConditional<S, R> {
     isInvalid: (injectee: ActionContext<S, R>, payload: any) => any;
     handler: ActionHandler<S, R>;
@@ -160,6 +168,20 @@ export declare function actionsCachedConditional<S, R>(actions: ActionCacheCondi
  *    equivalent plugin option.
  */
 export declare function actionsCached<S, R>(actions: ActionCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>;
+/**
+ * Produces actions with multiple cached results. Each action has a `getKey`
+ * function which is optional - when the result of that function changes it
+ * clears the cache for all the results for that action. Each action has a
+ * required `getResultKey` function which is unique to that action call - and
+ * if that key has not ran for that action it is ran, otherwise the cached
+ * result is returned.
+ *
+ * @param actions The actions to cache all the results of.
+ * @param cache Cache options to override the global options passed to the
+ *    plugin. If an option is not passed in the input it defaults to the
+ *    equivalent plugin option.
+ */
+export declare function actionsCachedResults<S, R>(actions: ActionResultCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>;
 /**
  * Watches the given actions and invokes the callbacks passed in the options
  * of `VuexRouterActions`. If the result of an action is a promise - it is

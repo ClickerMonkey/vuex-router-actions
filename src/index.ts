@@ -24,6 +24,19 @@ export interface ActionCaches<S, R>
   [key: string]: ActionCache<S, R>
 }
 
+export interface ActionResultCache<S, R>
+{
+  getKey?: (injectee: ActionContext<S, R>, payload: any) => any,
+  getResultKey: (injectee: ActionContext<S, R>, payload: any) => any,
+  handler: ActionHandler<S, R>
+}
+
+export interface ActionResultCaches<S, R>
+{
+  [key: string]: ActionResultCache<S, R>
+}
+
+
 export interface ActionCacheConditional<S, R>
 {
   isInvalid: (injectee: ActionContext<S, R>, payload: any) => any
@@ -66,6 +79,7 @@ const ASSERT_STORE = 'VuexRouterActions must be passed as a plugin to one store'
 const ASSERT_HANDLER = 'Cached action handler must be a function.'
 const ASSERT_IS_INVALID = 'Cached action isInvalid must be a function.'
 const ASSERT_GET_KEY = 'Cached action getKey must be a function.'
+const ASSERT_GET_RESULT_KEY = 'Cached action getResultKey must be a function.'
 const ASSERT_ACTION_INVALID = 'An action passed is not a valid Vuex action.'
 
 const DEFAULT_OTHERWISE = (to, from, rejectReason) => false
@@ -309,6 +323,59 @@ export function actionsCached <S, R>(actions: ActionCaches<S, S>, cache?: Partia
       }
 
       return cachedResults[key]
+    }
+  }
+
+  return out
+}
+
+/**
+ * Produces actions with multiple cached results. Each action has a `getKey`
+ * function which is optional - when the result of that function changes it
+ * clears the cache for all the results for that action. Each action has a
+ * required `getResultKey` function which is unique to that action call - and
+ * if that key has not ran for that action it is ran, otherwise the cached
+ * result is returned.
+ *
+ * @param actions The actions to cache all the results of.
+ * @param cache Cache options to override the global options passed to the
+ *    plugin. If an option is not passed in the input it defaults to the
+ *    equivalent plugin option.
+ */
+export function actionsCachedResults <S, R>(actions: ActionResultCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>
+{
+  const cacheOptions = parseCacheOptions({}, options, cache)
+  const out = Object.create(null)
+
+  for (const key in actions)
+  {
+    const action = actions[key]
+    const { handler, getKey, getResultKey } = action
+
+    assert(typeof handler === 'function', ASSERT_HANDLER)
+    assert(typeof getResultKey === 'function', ASSERT_GET_RESULT_KEY)
+
+    let cachedResults = Object.create(null)
+    let cachedActionKey: string | undefined = undefined
+
+    out[key] = function(context, payload)
+    {
+      const actionKey = getKey ? cacheOptions.createCacheKey(getKey.call(this, context, payload)) : undefined
+
+      if (actionKey !== cachedActionKey)
+      {
+        cachedActionKey = actionKey
+        cachedResults = Object.create(null)
+      }
+
+      const cacheKey = cacheOptions.createCacheKey(getResultKey.call(this, context, payload))
+
+      if (!(cacheKey in cachedResults))
+      {
+        cachedResults[cacheKey] = handler.call(this, context, payload)
+      }
+
+      return cachedResults[cacheKey]
     }
   }
 

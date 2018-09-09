@@ -13,6 +13,7 @@ import VuexRouterActions, {
   actionOptional,
   actionsCachedConditional,
   actionsCached,
+  actionsCachedResults,
   actionsWatch,
   actionsProtect,
   actionsLoading
@@ -249,6 +250,89 @@ describe('actions', function()
     expect(store.state.times).to.equal(2)
     store.dispatch('updateTimes', [3, 4])
     expect(store.state.times).to.equal(2)
+  })
+
+  it('actionsCachedResults', function()
+  {
+    const plugin = VuexRouterActions()
+
+    type TestStore = {
+      parent: {
+        id: string,
+        children: { [key: string]: string }
+      }
+    }
+
+    let childLoads: number = 0
+    let childAdds: number = 0
+
+    const store = new Vuex.Store<TestStore>({
+      plugins: [plugin],
+      state: {
+        parent: {
+          id: '1',
+          children: {}
+        }
+      },
+      mutations: {
+        setParent(state, id) {
+          state.parent = { id, children: {} }
+        },
+        addChild (state, child) {
+          childAdds++
+          state.parent.children[child.id] = child
+        }
+      },
+      actions: {
+        loadChild (context, child_id) {
+          childLoads++
+          const child = { id: child_id }
+          context.commit('addChild', child)
+          return child
+        },
+        ...actionsCachedResults({
+          getChild: {
+            getKey: ({state}) => state.parent.id,
+            getResultKey: (context, child_id) => child_id,
+            handler: ({dispatch}, child_id) => dispatch('loadChild', child_id)
+          }
+        })
+      }
+    })
+
+    expect(childLoads).to.equal(0)
+    expect(childAdds).to.equal(0)
+
+    store.dispatch('getChild', 23)
+
+    expect(childLoads).to.equal(1)
+    expect(childAdds).to.equal(1)
+
+    store.dispatch('getChild', 23)
+
+    expect(childLoads).to.equal(1)
+    expect(childAdds).to.equal(1)
+
+    store.dispatch('getChild', 45)
+
+    expect(childLoads).to.equal(2)
+    expect(childAdds).to.equal(2)
+
+    store.commit('setParent', '6')
+
+    expect(childLoads).to.equal(2)
+    expect(childAdds).to.equal(2)
+
+    store.dispatch('getChild', 23)
+
+    expect(childLoads).to.equal(3)
+    expect(childAdds).to.equal(3)
+
+    store.dispatch('getChild', 45)
+
+    expect(childLoads).to.equal(4)
+    expect(childAdds).to.equal(4)
+
   })
 
   it('actionsWatch', function(done)
