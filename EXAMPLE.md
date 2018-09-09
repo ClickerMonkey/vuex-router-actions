@@ -12,6 +12,8 @@ The app will utilize `Vue`, `Vuex`, `VueRouter`, and `VuexRouterActions`
 - [Models](#models)
 - [State](#state)
 - [Routes](#routes)
+- [Router](#router)
+- [Store](#store)
 
 ## Models
 
@@ -58,13 +60,97 @@ Since this example uses TypeScript, I like to use an interface to keep my `Vuex.
 
 ```typescript
 // SlackState.ts
-interface SlackState {
+export interface SlackState {
   user_id: string
   user: User
   group: Group // currently viewed group
   channel: Channel // currently viewed channel
   messages: Message // current viewed messages in channel
 }
+export function getDefaultState(): SlackState {
+  return {
+    user_id: null,
+    user: null,
+    group: null,
+    channel: null,
+    messages: null
+  }
+}
 ```
 
 ## Routes
+
+The following routes describe the pages in the App
+- `/`: The default page, shows your groups
+- `/:group`: A group page, no channel is selected
+- `/:group/channel/:channel`: A channel page with messages
+- `/sign-in`: The page when you are not signed in
+
+## Router
+
+We're using vue-router and we're doing nested routes, so this file is very straightforward. 
+
+```typescript
+// Router.ts
+
+import Vue from 'vue'
+import Router from 'vue-router'
+import SignInPage from './pages/SignInPage.vue'
+import HomePage from './pages/HomePage.vue'
+import GroupPage from './pages/GroupPage.vue'
+import ChannelPage from './pages/ChannelPage.vue'
+
+export default new Router({
+  routes: [
+    {
+      path: '/sign-in',
+      component: SignInPage
+    },
+    {
+      path: '/',
+      component: HomePage
+    },
+    {
+      path: '/:group',
+      component: GroupPage,
+      children: [
+        {
+          path: 'channel/:channel',
+          component: ChannelPage
+        }
+      ]
+    }
+  ]
+})
+```
+
+## Store
+
+Finally the Vuex store! This will contant the states, mutations, and actions necessary to load data. This file references objects and constants stored in files that are defined below.
+
+```typescript
+import Vuex from 'vuex'
+import VuexRouterActions, { actionsWatch } from 'vuex-router-actions'
+
+import { DEBUG_OPTIONS } from './Debug'
+import { SlackState, getDefaultState } from './SlackState
+import { setters } from './mutations/Setters
+import { loaders } from './actions/Loaders'
+import { protectors } from './actions/Protectors'
+import { pages } from './actions/Pages'
+
+export const plugin = VuexRouterActions( DEBUG_OPTIONS )
+
+export const store = new VuexStore<SlackState>({
+  plugins: [plugin],
+  state: getDefaultState(),
+  mutations: {
+    ...setters
+  },
+  actions: actionsWatch({
+    ...loaders,
+    ...protectors,
+    ...pages
+  })
+})
+```
