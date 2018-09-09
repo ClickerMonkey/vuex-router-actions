@@ -537,6 +537,7 @@ export const setters = {
 
 ```typescript
 // mutations/Auth.ts
+import { actionsDestroyCache } from 'vuex-router-actions'
 import { SlackState, getDefaultState } from '../State'
 import { store } from '../Store'
 
@@ -548,6 +549,8 @@ export const auth = {
 export const auths = {
   [auth.SIGN_OUT] (state: SlackState) {
     store.replaceState(getDefaultState())
+    actionsDestroyCache()
+    // router.$replace('/sign-in')
   },
   [auth.SIGN_IN] (state: SlackState, {username, password}) {
     // TODO takes username and password and does something with it. this might be better as an action

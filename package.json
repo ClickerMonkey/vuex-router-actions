@@ -1,6 +1,6 @@
 {
     "name": "vuex-router-actions",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "author": "Philip Diffenderfer",
     "description": "A library for loading views with actions, including caching, permissions, loading, and logging.",
     "license": "MIT",

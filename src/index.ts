@@ -73,6 +73,9 @@ export interface ActionsCacheOptions
   createCacheKey (input: any): string
 }
 
+export type ActionsCacheDestroyer = () => any
+
+
 
 
 const ASSERT_STORE = 'VuexRouterActions must be passed as a plugin to one store'
@@ -90,6 +93,7 @@ let store: Store<any>
 let options: ActionsPluginOptions = actionsDefaultOptions()
 let actionNum: number = 0
 let actionDone: number = 0
+let cacheDestroyers: ActionsCacheDestroyer[] = []
 
 
 /**
@@ -142,6 +146,7 @@ export function actionsDestroy(): void
   options = actionsDefaultOptions()
   actionNum = 0
   actionDone = 0
+  actionsDestroyCache()
 }
 
 /**
@@ -157,6 +162,18 @@ export function actionsDefaultOptions(): ActionsPluginOptions
     onActionsDone: () => {},
     createCacheKey: (input: any) => JSON.stringify(input)
   }
+}
+
+/**
+ * This function destroys all caches created with `actionsCached`,
+ * `actionsCachedConditional`, and `actionsCachedResults`. This is a necessary
+ * function when you are implementing something like a Sign Out function in
+ * your app.
+ */
+export function actionsDestroyCache(): void
+{
+  cacheDestroyers.forEach(d => d())
+  cacheDestroyers = []
 }
 
 /**
@@ -246,10 +263,15 @@ export function actionOptional <T>(promise: Promise<T>, resolveOnReject: () => a
  *
  * @param actions The actions to conditionally cache.
  */
-export function actionsCachedConditional <S, R>(actions: ActionCacheConditionals<S, S>): ActionTree<S, S>
+export function actionsCachedConditional <S = any>(actions: ActionCacheConditionals<S, S>): ActionTree<S, S>
 {
   const out = Object.create(null)
-  const cachedResults = Object.create(null)
+  let cachedResults = Object.create(null)
+
+  cacheDestroyers.push(() =>
+  {
+    cachedResults = Object.create(null)
+  })
 
   for (const key in actions)
   {
@@ -297,12 +319,18 @@ export function actionsCachedConditional <S, R>(actions: ActionCacheConditionals
  *    plugin. If an option is not passed in the input it defaults to the
  *    equivalent plugin option.
  */
-export function actionsCached <S, R>(actions: ActionCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>
+export function actionsCached <S = any>(actions: ActionCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>
 {
   const cacheOptions = parseCacheOptions({}, options, cache)
   const out = Object.create(null)
-  const cachedResults = Object.create(null)
-  const cachedKeys = Object.create(null)
+  let cachedResults = Object.create(null)
+  let cachedKeys = Object.create(null)
+
+  cacheDestroyers.push(() =>
+  {
+    cachedKeys = Object.create(null)
+    cachedResults = Object.create(null)
+  })
 
   for (const key in actions)
   {
@@ -342,7 +370,7 @@ export function actionsCached <S, R>(actions: ActionCaches<S, S>, cache?: Partia
  *    plugin. If an option is not passed in the input it defaults to the
  *    equivalent plugin option.
  */
-export function actionsCachedResults <S, R>(actions: ActionResultCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>
+export function actionsCachedResults <S = any>(actions: ActionResultCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>
 {
   const cacheOptions = parseCacheOptions({}, options, cache)
   const out = Object.create(null)
@@ -357,6 +385,12 @@ export function actionsCachedResults <S, R>(actions: ActionResultCaches<S, S>, c
 
     let cachedResults = Object.create(null)
     let cachedActionKey: string | undefined = undefined
+
+    cacheDestroyers.push(() =>
+    {
+      cachedResults = Object.create(null)
+      cachedActionKey = undefined
+    })
 
     out[key] = function(context, payload)
     {
@@ -413,7 +447,7 @@ export function actionsCachedResults <S, R>(actions: ActionResultCaches<S, S>, c
  *    plugin. If an option is not passed in the input it defaults to the
  *    equivalent plugin option.
  */
-export function actionsWatch <S, R>(actions: ActionTree<S, S>, watch?: Partial<ActionsWatchOptions>): ActionTree<S, S>
+export function actionsWatch <S = any>(actions: ActionTree<S, S>, watch?: Partial<ActionsWatchOptions>): ActionTree<S, S>
 {
   const watchOptions = parseWatchOptions({}, options, watch)
   const localDoneGiven = watch && watch.onActionsDone
@@ -514,7 +548,7 @@ export function actionsWatch <S, R>(actions: ActionTree<S, S>, watch?: Partial<A
  *
  * @param actions The actions which return truthy, falsy, or promises.
  */
-export function actionsProtect <S, R>(actions: ActionTree<S, S>): ActionTree<S, S>
+export function actionsProtect <S = any>(actions: ActionTree<S, S>): ActionTree<S, S>
 {
   return actionsIterate(actions, action =>
   {
@@ -555,7 +589,7 @@ export function actionsProtect <S, R>(actions: ActionTree<S, S>): ActionTree<S, 
  *    whether an action passed is currently running.
  * @param actions The actions to watch.
  */
-export function actionsLoading <S, R>(input: ActionLoadingInput<S, S>, actions: ActionTree<S, S>): ActionTree<S, S>
+export function actionsLoading <S = any>(input: ActionLoadingInput<S, S>, actions: ActionTree<S, S>): ActionTree<S, S>
 {
   let loadingCount: number = 0
   let loading: boolean = false
@@ -646,7 +680,7 @@ function parseCacheOptions (out: Partial<ActionsCacheOptions>, defaults: Actions
 }
 
 // Iterates Vuex action input and returns a similar structure but with the handler replaced.
-function actionsIterate <S, R>(actions: ActionTree<S, S>, getHandler: ActionHandlerTransform<S, S>): ActionTree<S, S>
+function actionsIterate <S = any>(actions: ActionTree<S, S>, getHandler: ActionHandlerTransform<S, S>): ActionTree<S, S>
 {
   const iterated = Object.create(null)
 

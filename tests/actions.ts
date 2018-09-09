@@ -9,6 +9,7 @@ import * as Vuex from 'vuex'
 
 import VuexRouterActions, {
   actionsDestroy,
+  actionsDestroyCache,
   actionBeforeRoute,
   actionOptional,
   actionsCachedConditional,
@@ -528,6 +529,136 @@ describe('actions', function()
         }
       )
 
+  })
+
+  it('actionsDestroyCache actionsCached', function()
+  {
+    const plugin = VuexRouterActions()
+
+    type TestStore = {}
+
+    let refreshes: number = 0
+
+    const store = new Vuex.Store<TestStore>({
+      plugins: [plugin],
+      actions: {
+        ...actionsCached({
+          refresh: {
+            getKey: () => 23,
+            handler: () => ++refreshes
+          }
+        })
+      }
+    })
+
+    expect(refreshes).to.equal(0)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(1)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(1)
+
+    actionsDestroyCache()
+
+    expect(refreshes).to.equal(1)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(2)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(2)
+  })
+
+  it('actionsDestroyCache actionsCachedConditional', function()
+  {
+    const plugin = VuexRouterActions()
+
+    type TestStore = {}
+
+    let refreshes: number = 0
+
+    const store = new Vuex.Store<TestStore>({
+      plugins: [plugin],
+      actions: {
+        ...actionsCachedConditional({
+          refresh: {
+            isInvalid: () => false,
+            handler: () => ++refreshes
+          }
+        })
+      }
+    })
+
+    expect(refreshes).to.equal(0)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(1)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(1)
+
+    actionsDestroyCache()
+
+    expect(refreshes).to.equal(1)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(2)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(2)
+  })
+
+  it('actionsDestroyCache actionsCachedResults', function()
+  {
+    const plugin = VuexRouterActions()
+
+    type TestStore = {}
+
+    let refreshes: number = 0
+
+    const store = new Vuex.Store<TestStore>({
+      plugins: [plugin],
+      actions: {
+        ...actionsCachedResults({
+          refresh: {
+            getKey: () => 34,
+            getResultKey: () => 12,
+            handler: () => ++refreshes
+          }
+        })
+      }
+    })
+
+    expect(refreshes).to.equal(0)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(1)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(1)
+
+    actionsDestroyCache()
+
+    expect(refreshes).to.equal(1)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(2)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(2)
   })
 
 })

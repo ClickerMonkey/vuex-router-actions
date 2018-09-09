@@ -1,6 +1,6 @@
 ## vuex-router-actions
 
-The library you've been waiting for to streamline complex Vuex actions and have fast and secure asynchronous routing in your app. 
+The library you've been waiting for to streamline complex Vuex actions and have fast and secure asynchronous routing in your app.
 
 **Checkout [this example](https://github.com/ClickerMonkey/vuex-router-actions/blob/master/EXAMPLE.md) to see how this library can be used to create a Slack clone!**
 
@@ -33,6 +33,7 @@ The library you've been waiting for to streamline complex Vuex actions and have 
   - [actionsCached](#actionscached)
   - [actionsCachedConditional](#actionscachedconditional)
   - [actionsCachedResults](#actionscachedresults)
+  - [actionsDestroyCache](#actionsdestroycache)
   - [actionsProtect](#actionsprotect)
   - [actionBeforeRoute](#actionbeforeroute)
   - [actionOptional](#actionoptional)
@@ -187,6 +188,16 @@ const store = new Vuex.Store<TestStore>({
     }
   })
 })
+```
+
+### actionsDestroyCache
+
+This function destroys all caches created with `actionsCached`, `actionsCachedConditional`, and `actionsCachedResults`. This is a necessary function when you are implementing something like a Sign Out function in your app.
+
+```javascript
+import { actionsDestroyCache } from 'vuex-router-actions'
+// signOut
+actionsDestroyCache()
 ```
 
 ### actionsProtect

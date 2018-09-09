@@ -43,6 +43,7 @@ export interface ActionsWatchOptions {
 export interface ActionsCacheOptions {
     createCacheKey(input: any): string;
 }
+export declare type ActionsCacheDestroyer = () => any;
 /**
  * This is the plugin that should be invoked and passed in the plugins option
  * to the store which utilizes `actionBeforeRoute` and `actionsLoading` (or
@@ -80,6 +81,13 @@ export declare function actionsDestroy(): void;
  * Generates the default options for the plugin.
  */
 export declare function actionsDefaultOptions(): ActionsPluginOptions;
+/**
+ * This function destroys all caches created with `actionsCached`,
+ * `actionsCachedConditional`, and `actionsCachedResults`. This is a necessary
+ * function when you are implementing something like a Sign Out function in
+ * your app.
+ */
+export declare function actionsDestroyCache(): void;
 /**
  * Dispatches an action in the store and waits for the action to finish before
  * the routed component this is placed in is entered or updated (see
@@ -142,7 +150,7 @@ export declare function actionOptional<T>(promise: Promise<T>, resolveOnReject?:
  *
  * @param actions The actions to conditionally cache.
  */
-export declare function actionsCachedConditional<S, R>(actions: ActionCacheConditionals<S, S>): ActionTree<S, S>;
+export declare function actionsCachedConditional<S = any>(actions: ActionCacheConditionals<S, S>): ActionTree<S, S>;
 /**
  * Produces actions with cached results based on some cache key. The action will
  * always run the first time unless the cache key returned `undefined`. The
@@ -167,7 +175,7 @@ export declare function actionsCachedConditional<S, R>(actions: ActionCacheCondi
  *    plugin. If an option is not passed in the input it defaults to the
  *    equivalent plugin option.
  */
-export declare function actionsCached<S, R>(actions: ActionCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>;
+export declare function actionsCached<S = any>(actions: ActionCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>;
 /**
  * Produces actions with multiple cached results. Each action has a `getKey`
  * function which is optional - when the result of that function changes it
@@ -181,7 +189,7 @@ export declare function actionsCached<S, R>(actions: ActionCaches<S, S>, cache?:
  *    plugin. If an option is not passed in the input it defaults to the
  *    equivalent plugin option.
  */
-export declare function actionsCachedResults<S, R>(actions: ActionResultCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>;
+export declare function actionsCachedResults<S = any>(actions: ActionResultCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>;
 /**
  * Watches the given actions and invokes the callbacks passed in the options
  * of `VuexRouterActions`. If the result of an action is a promise - it is
@@ -213,7 +221,7 @@ export declare function actionsCachedResults<S, R>(actions: ActionResultCaches<S
  *    plugin. If an option is not passed in the input it defaults to the
  *    equivalent plugin option.
  */
-export declare function actionsWatch<S, R>(actions: ActionTree<S, S>, watch?: Partial<ActionsWatchOptions>): ActionTree<S, S>;
+export declare function actionsWatch<S = any>(actions: ActionTree<S, S>, watch?: Partial<ActionsWatchOptions>): ActionTree<S, S>;
 /**
  * Creates "protection" actions. These are functions which return a truthy or
  * falsy value and the action returned produces a Promise that is resolved or
@@ -252,7 +260,7 @@ export declare function actionsWatch<S, R>(actions: ActionTree<S, S>, watch?: Pa
  *
  * @param actions The actions which return truthy, falsy, or promises.
  */
-export declare function actionsProtect<S, R>(actions: ActionTree<S, S>): ActionTree<S, S>;
+export declare function actionsProtect<S = any>(actions: ActionTree<S, S>): ActionTree<S, S>;
 /**
  * Calls a mutation on a store when any of the passed actions are running and
  * when they stop. This provides an easy way to signal to the user when something
@@ -281,4 +289,4 @@ export declare function actionsProtect<S, R>(actions: ActionTree<S, S>): ActionT
  *    whether an action passed is currently running.
  * @param actions The actions to watch.
  */
-export declare function actionsLoading<S, R>(input: ActionLoadingInput<S, S>, actions: ActionTree<S, S>): ActionTree<S, S>;
+export declare function actionsLoading<S = any>(input: ActionLoadingInput<S, S>, actions: ActionTree<S, S>): ActionTree<S, S>;
