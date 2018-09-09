@@ -1,6 +1,6 @@
 ## vuex-router-actions
 
-The library you've been waiting for to streamline complex Vuex actions and fast and secure routing in your app.
+The library you've been waiting for to streamline complex Vuex actions and have fast and secure asynchronous routing in your app.
 
 ## Goals
 
