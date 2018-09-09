@@ -11,7 +11,7 @@ The app will utilize `Vue`, `Vuex`, `VueRouter`, and `VuexRouterActions`
 ## Project Structure
 
 - [Models.ts](#models)
-- [SlackState.ts](#state)
+- [State.ts](#state)
 - [Router.ts](#router)
 - [Store.ts](#store)
 - **pages/**
@@ -148,7 +148,7 @@ import Vuex from 'vuex'
 import VuexRouterActions, { actionsWatch } from 'vuex-router-actions'
 
 import { DEBUG_OPTIONS } from './Debug'
-import { SlackState, getDefaultState } from './SlackState'
+import { SlackState, getDefaultState } from './State'
 import { setters } from './mutations/Setters'
 import { auths } from './mutations/Auth'
 import { loaders } from './actions/Loaders'
@@ -471,7 +471,7 @@ export const getters = actionsCacheResults({
 
 ```typescript
 // mutations/Setters.ts
-import { SlackState } from '../SlackState'
+import { SlackState } from '../State'
 
 export const setter = {
   USER: 'setUser',
