@@ -509,7 +509,7 @@ export const setters = {
 ```typescript
 // mutations/Auth.ts
 import { SlackState, getDefaultState } from '../State'
-import { store } from '../Store
+import { store } from '../Store'
 
 export const auth = {
   SIGN_OUT: 'signOut',
@@ -518,9 +518,9 @@ export const auth = {
 
 export const auths = {
   [auth.SIGN_OUT] (state: SlackState) {
-    store.replaceState(getDefaultState)
+    store.replaceState(getDefaultState())
   },
-  [auth.SIGN_IN] (state: SlackState) {
+  [auth.SIGN_IN] (state: SlackState, {username, password}) {
     // TODO takes username and password and does something with it. this might be better as an action
   }
 }
