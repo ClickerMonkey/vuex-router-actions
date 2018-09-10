@@ -1,4 +1,4 @@
-import { Store, ActionTree, ActionContext } from 'vuex';
+import { Store, Action, ActionTree, ActionContext } from 'vuex';
 export declare type ActionHandler<S, R> = (injectee: ActionContext<S, R>, payload: any) => any;
 export declare type ActionHandlerTransform<S, R> = (handler: ActionHandler<S, R>, key: string) => ActionHandler<S, R>;
 export interface ActionObject<S, R> {
@@ -7,7 +7,7 @@ export interface ActionObject<S, R> {
 }
 export interface ActionCache<S, R> {
     getKey: (injectee: ActionContext<S, R>, payload: any) => any;
-    handler: ActionHandler<S, R>;
+    action: Action<S, R>;
 }
 export interface ActionCaches<S, R> {
     [key: string]: ActionCache<S, R>;
@@ -15,14 +15,14 @@ export interface ActionCaches<S, R> {
 export interface ActionResultCache<S, R> {
     getKey?: (injectee: ActionContext<S, R>, payload: any) => any;
     getResultKey: (injectee: ActionContext<S, R>, payload: any) => any;
-    handler: ActionHandler<S, R>;
+    action: Action<S, R>;
 }
 export interface ActionResultCaches<S, R> {
     [key: string]: ActionResultCache<S, R>;
 }
 export interface ActionCacheConditional<S, R> {
     isInvalid: (injectee: ActionContext<S, R>, payload: any) => any;
-    handler: ActionHandler<S, R>;
+    action: Action<S, R>;
 }
 export interface ActionCacheConditionals<S, R> {
     [key: string]: ActionCacheConditional<S, R>;
@@ -141,7 +141,7 @@ export declare function actionOptional<T>(promise: Promise<T>, resolveOnReject?:
  *      ...actionsCachedConditional({
  *        loadPage: {
  *          isInvalid: (context, payload) => true, // look at store, getters, payload, etc
- *          handler: (context, payload) => null // some result that can be cached
+ *          action: (context, payload) => null // some result that can be cached
  *        }
  *      })
  *    }
@@ -152,10 +152,27 @@ export declare function actionOptional<T>(promise: Promise<T>, resolveOnReject?:
  */
 export declare function actionsCachedConditional<S = any>(actions: ActionCacheConditionals<S, S>): ActionTree<S, S>;
 /**
+ * Produce an action with cached results based on some condition. The action will
+ * always run the first time.
+ *
+ * ```javascript
+ * const store = new Vuex.Store({
+ *    actions: {
+ *      loadPage: actionCachedConditional({
+ *        isInvalid: (context, payload) => true, // look at store, getters, payload, etc
+ *        action: (context, payload) => null // some result that can be cached
+ *      })
+ *    }
+ * })
+ * ```
+ *
+ * @param input The action to conditionally cache.
+ */
+export declare function actionCachedConditional<S = any>(input: ActionCacheConditional<S, S>): Action<S, S>;
+/**
  * Produces actions with cached results based on some cache key. The action will
- * always run the first time unless the cache key returned `undefined`. The
- * cached results of the action are "cleared" when a different key is returned
- * for a given action.
+ * always run the first time. The cached results of the action are "cleared"
+ * when a different key is returned for a given action.
  *
  * ```javascript
  * const store = new Vuex.Store({
@@ -163,7 +180,7 @@ export declare function actionsCachedConditional<S = any>(actions: ActionCacheCo
  *      ...actionsCached({
  *        loadPage: {
  *          getKey: (context, payload) => payload, // look at store, getters, payload, etc
- *          handler: (context, payload) => null // some result that can be cached
+ *          action: (context, payload) => null // some result that can be cached
  *        }
  *      })
  *    }
@@ -176,6 +193,28 @@ export declare function actionsCachedConditional<S = any>(actions: ActionCacheCo
  *    equivalent plugin option.
  */
 export declare function actionsCached<S = any>(actions: ActionCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>;
+/**
+ * Produces actions with cached results based on some cache key. The action will
+ * always run the first time. The cached results of the action are "cleared"
+ * when a different key is returned for a given action.
+ *
+ * ```javascript
+ * const store = new Vuex.Store({
+ *    actions: {
+ *      loadPage: actionCached({
+ *        getKey: (context, payload) => payload, // look at store, getters, payload, etc
+ *        action: (context, payload) => null // some result that can be cached
+ *      })
+ *    }
+ * })
+ * ```
+ *
+ * @param actions The actions to cache.
+ * @param cache Cache options to override the global options passed to the
+ *    plugin. If an option is not passed in the input it defaults to the
+ *    equivalent plugin option.
+ */
+export declare function actionCached<S = any>(input: ActionCache<S, S>, cache?: Partial<ActionsCacheOptions>): Action<S, S>;
 /**
  * Produces actions with multiple cached results. Each action has a `getKey`
  * function which is optional - when the result of that function changes it
@@ -190,6 +229,20 @@ export declare function actionsCached<S = any>(actions: ActionCaches<S, S>, cach
  *    equivalent plugin option.
  */
 export declare function actionsCachedResults<S = any>(actions: ActionResultCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>;
+/**
+ * Produce an action with multiple cached results. The action has a `getKey`
+ * function which is optional - when the result of that function changes it
+ * clears the cache for all the results for that action. Each action has a
+ * required `getResultKey` function which is unique to that action call - and
+ * if that key has not ran for that action it is ran, otherwise the cached
+ * result is returned.
+ *
+ * @param actions The action to cache all the results of.
+ * @param cache Cache options to override the global options passed to the
+ *    plugin. If an option is not passed in the input it defaults to the
+ *    equivalent plugin option.
+ */
+export declare function actionCachedResults<S = any>(input: ActionResultCache<S, S>, cache?: Partial<ActionsCacheOptions>): Action<S, S>;
 /**
  * Watches the given actions and invokes the callbacks passed in the options
  * of `VuexRouterActions`. If the result of an action is a promise - it is

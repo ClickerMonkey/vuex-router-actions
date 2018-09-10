@@ -139,8 +139,11 @@ describe('actions', function()
       actions: {
         ...actionsCachedConditional({
           updateTimes: {
-            isInvalid: ({state}) => state.times % 2 === 0,
-            handler: ({commit}) => commit('addTimes')
+            isInvalid: ({state}) => state.times % 2 === 0, // if even
+            action: ({commit, state}) => {
+              commit('addTimes')
+              return state.times
+            }
           }
         })
       }
@@ -186,7 +189,7 @@ describe('actions', function()
         ...actionsCached({
           updateTimes: {
             getKey: ({state}) => state.id,
-            handler: ({commit}) => commit('addTimes')
+            action: ({commit}) => commit('addTimes')
           }
         })
       }
@@ -232,7 +235,7 @@ describe('actions', function()
         ...actionsCached({
           updateTimes: {
             getKey: ({state}, payload) => payload,
-            handler: ({commit}) => commit('addTimes')
+            action: ({commit}) => commit('addTimes')
           }
         }, {
           createCacheKey (x: any): string {
@@ -295,7 +298,7 @@ describe('actions', function()
           getChild: {
             getKey: ({state}) => state.parent.id,
             getResultKey: (context, child_id) => child_id,
-            handler: ({dispatch}, child_id) => dispatch('loadChild', child_id)
+            action: ({dispatch}, child_id) => dispatch('loadChild', child_id)
           }
         })
       }
@@ -545,7 +548,7 @@ describe('actions', function()
         ...actionsCached({
           refresh: {
             getKey: () => 23,
-            handler: () => ++refreshes
+            action: () => ++refreshes
           }
         })
       }
@@ -588,7 +591,7 @@ describe('actions', function()
         ...actionsCachedConditional({
           refresh: {
             isInvalid: () => false,
-            handler: () => ++refreshes
+            action: () => ++refreshes
           }
         })
       }
@@ -632,7 +635,7 @@ describe('actions', function()
           refresh: {
             getKey: () => 34,
             getResultKey: () => 12,
-            handler: () => ++refreshes
+            action: () => ++refreshes
           }
         })
       }

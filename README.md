@@ -30,8 +30,11 @@ The library you've been waiting for to streamline complex Vuex actions and have 
 - [API](#api)
   - [actionsWatch](#actionswatch)
   - [actionsLoading](#actionsloading)
+  - [actionCached](#actioncached)
   - [actionsCached](#actionscached)
+  - [actionCachedConditional](#actioncachedconditional)
   - [actionsCachedConditional](#actionscachedconditional)
+  - [actionCachedResults](#actionscachedresults)
   - [actionsCachedResults](#actionscachedresults)
   - [actionsDestroyCache](#actionsdestroycache)
   - [actionsProtect](#actionsprotect)
@@ -120,9 +123,40 @@ Instead of a mutation you can optionally pass a function which is given a `conte
 )
 ```
 
+### actionCached
+
+Produce an action with a cached result based on some cache key. The action will always run the first time. The cached results of the action are "cleared" when a different key is returned for a given action.
+
+```javascript
+import VuexRouterActions, { actionCached } from 'vuex-router-actions'
+const store = new Vuex.Store({
+  plugins: [VuexRouterActions()],
+  actions: {
+    loadPage: actionCache({
+      getKey: (context, payload) => payload, // look at store, getters, payload, etc
+      action: (context, payload) => null // some result that can be cached
+    })
+  }
+})
+```
+
+By default the results of `getKey` are passed to `JSON.stringify` to make it an easily comparable value. If you want to override this functionality you can pass `createCacheKey (key: any): string` to the plugin options or as the second argument to actionsCached:
+
+```javascript
+loadPage: actionCached({
+  getKey: (context, payload) => payload, // look at store, getters, payload, etc
+  action: (context, payload) => null // some result that can be cached
+}, {
+  createCacheKey(key) { // the keys for these actions are arrays, we will join them to produce a string.
+    return key.join('-')
+  }
+})
+```
+
 ### actionsCached
 
-Produces actions with cached results based on some cache key. The action will always run the first time unless the cache key returned `undefined`. The cached results of the action are "cleared" when a different key is returned for a given action.
+Similar to [actionCached](#actioncached) except it handles multiple actions.
+This function also takes optional cache options as the second argument.
 
 ```javascript
 import VuexRouterActions, { actionsCached } from 'vuex-router-actions'
@@ -132,31 +166,34 @@ const store = new Vuex.Store({
     ...actionsCached({
       loadPage: {
         getKey: (context, payload) => payload, // look at store, getters, payload, etc
-        handler: (context, payload) => null // some result that can be cached
+        action: (context, payload) => null // some result that can be cached
       }
     })
   }
 })
 ```
 
-By default the results of `getKey` are passed to `JSON.stringify` to make it an easily comparable value. If you want to override this functionality you can pass `createCacheKey (key: any): string` to the plugin options or as the second argument to actionsCached:
+### actionCachedConditional
+
+Produce an action with a cached result based on some condition. The action will always run the first time. When `isInvalid` returns true the action is
+re-evaluated.
 
 ```javascript
-...actionsCached({
-  loadPage: {
-    getKey: (context, payload) => payload, // look at store, getters, payload, etc
-    handler: (context, payload) => null // some result that can be cached
-  }
-}, {
-  createCacheKey(key) { // the keys for these actions are arrays, we will join them to produce a string.
-    return key.join('-')
+import VuexRouterActions, { actionCachedConditional } from 'vuex-router-actions'
+const store = new Vuex.Store({
+  plugins: [VuexRouterActions()],
+  actions: {
+    loadPage: actionCachedConditional({
+      isInvalid: (context, payload) => true, // look at store, getters, payload, etc
+      action: (context, payload) => null // some result that can be cached
+    })
   }
 })
 ```
 
 ### actionsCachedConditional
 
-Produces actions with cached results based on some condition. The action will always run the first time.
+Similar to [actionCachedConditional](#actioncachedconditional) except it handles multiple actions.
 
 ```javascript
 import VuexRouterActions, { actionsCachedConditional } from 'vuex-router-actions'
@@ -166,16 +203,31 @@ const store = new Vuex.Store({
     ...actionsCachedConditional({
       loadPage: {
         isInvalid: (context, payload) => true, // look at store, getters, payload, etc
-        handler: (context, payload) => null // some result that can be cached
+        action: (context, payload) => null // some result that can be cached
       }
     })
   }
 })
 ```
 
+### actionCachedResults
+
+Produce an action with multiple cached results. The action has a `getKey` function which is optional - when the result of that function changes it clears the cache for all the results for the action. The action has a required `getResultKey` function which is unique to that action call - and if that key has not ran for that action it is ran, otherwise the cached result is returned.
+
+```javascript
+import VuexRouterActions, { actionCachedResults } from 'vuex-router-actions'
+const store = new Vuex.Store<TestStore>({
+  getGroupUser: actionCachedResults({
+    getKey: ({state}) => state.group.id, // When the group id changes, the cached results clear
+    getResultKey: (context, user_id) => user_id,
+    action: ({dispatch, state}, user_id) => null // TODO Return User instance relative to the given group
+  })
+})
+```
+
 ### actionsCachedResults
 
-Produces actions with multiple cached results. Each action has a `getKey` function which is optional - when the result of that function changes it clears the cache for all the results for that action. Each action has a required `getResultKey` function which is unique to that action call - and if that key has not ran for that action it is ran, otherwise the cached result is returned.
+Similar to [actionCachedResults](#actioncachedresults) except it handles multiple actions.
 
 ```javascript
 import VuexRouterActions, { actionsCachedResults } from 'vuex-router-actions'
@@ -184,7 +236,7 @@ const store = new Vuex.Store<TestStore>({
     getGroupUser: {
       getKey: ({state}) => state.group.id, // When the group id changes, the cached results clear
       getResultKey: (context, user_id) => user_id,
-      handler: ({dispatch, state}, user_id) => null // TODO Return User instance relative to the given group
+      action: ({dispatch, state}, user_id) => null // TODO Return User instance relative to the given group
     }
   })
 })
@@ -238,7 +290,7 @@ Dispatches an action in the store and waits for the action to finish before the 
 import { actionBeforeRoute } from 'vuex-router-actions'
 export default {
  ...actionBeforeRoute('loadMyPage', (to, from, rejectReason, store, action) => {
-    return '/path/i/can/goto/perhaps/previous/which/also/does/check'
+    return '/page/blocked/where/do/I/go/next'
  })
 }
 ```

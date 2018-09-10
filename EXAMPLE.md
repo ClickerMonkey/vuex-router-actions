@@ -27,7 +27,23 @@ The app will utilize `Vue`, `Vuex`, `VueRouter`, and `VuexRouterActions`
   - [Getters.ts](#getters)
 - **mutations/**
   - [Setters.ts](#setters)
-  - [Auth.ts](#auth)
+  - [Session.ts](#session)
+
+## Concepts
+
+- **Getter**: An action which fetches data from an API. The result of the action is Promise which resolves the fetched data.
+- **Setter**: A mutation which is given a gotten value and applies it to the store state.
+- **Loader**: An action which calls one or more getters and populates references and relationships.
+- **Protector**: An action which analyzes the state and a desired route to determine if the user can proceed to that route.
+- **Page**: An action which does everything that needs to be done for a page:
+  - Load parent page if one exists
+  - Load data identified in route
+  - Do preliminary checks to see if user can go to route
+  - Load the remaining data for the page
+  - Do a final check based on the loaded data
+  - Apply the loaded data to the state
+  - *The page loads!*
+- **Session**: Mutations used to modify the user's session/store state
 
 ## Models
 
@@ -151,7 +167,7 @@ import VuexRouterActions, { actionsWatch } from 'vuex-router-actions'
 import { DEBUG_OPTIONS } from './Debug'
 import { SlackState, getDefaultState } from './State'
 import { setters } from './mutations/Setters'
-import { auths } from './mutations/Auth'
+import { sessions } from './mutations/Session'
 import { getters } from './actions/Getters'
 import { loaders } from './actions/Loaders'
 import { protects } from './actions/Protectors'
@@ -159,12 +175,12 @@ import { pages } from './actions/Pages'
 
 export const plugin = VuexRouterActions( DEBUG_OPTIONS )
 
-export const store = new VuexStore<SlackState>({
+export const store = new Vuex.Store<SlackState>({
   plugins: [plugin],
   state: getDefaultState(),
   mutations: {
     ...setters,
-    ...auths
+    ...sessions
   },
   actions: actionsWatch({
     ...getters,
@@ -177,8 +193,12 @@ export const store = new VuexStore<SlackState>({
 
 ## Debug
 
+This file offers some simple logging
+
 ```typescript
 // Debug.ts
+import { ActionsPluginOptions } from 'vuex-router-actions'
+
 export const DEBUG = process.env.NODE_ENV !== 'production'
 
 export const DEBUG_FUNCTION = (name: string) => {
@@ -187,7 +207,7 @@ export const DEBUG_FUNCTION = (name: string) => {
   }
 }
 
-export const DEBUG_OPTIONS = !DEBUG
+export const DEBUG_OPTIONS: Partial<ActionsPluginOptions> | undefined = !DEBUG
   ? undefined
   : {
     onActionStart: DEBUG_FUNCTION('onActionStart'),
@@ -228,14 +248,15 @@ export default {
 </template>
 <script>
 import { mapMutations } from 'vuex'
-import { auth } from './mutations/Auth'
+import { session } from './mutations/Session'
 
 export default {
-  data() {
-    return { username: '', password: '' }
-  },
+  data: vm => ({
+    username: '',
+    password: ''
+  }),
   methods: {
-    ...mapMutations([auth.SIGN_IN])
+    ...mapMutations([session.SIGN_IN])
   }
 }
 </script>
@@ -251,15 +272,17 @@ export default {
 import { mapState, mapMutations } from 'vuex'
 import { actionBeforeRoute } from 'vuex-router-actions'
 import { page } from './actions/Pages'
-import { auth } from './mutations/Auth'
+import { session } from './mutations/session'
 
 export default {
-  ...actionBeforeRoute(page.HOME),
+  ...actionBeforeRoute(page.HOME,
+    () => '/sign-in' // if we don't have a user, go to sign-in
+  ),
   computed: {
     ...mapState(['user'])
   },
   methods: {
-    ...mapMutations([auth.SIGN_OUT]),
+    ...mapMutations([session.SIGN_OUT]),
     viewGroup(group) {
       this.$router.push('/' + group.id)
     }
@@ -280,7 +303,9 @@ import { actionBeforeRoute } from 'vuex-router-actions'
 import { page } from './actions/Pages'
 
 export default {
-  ...actionBeforeRoute(page.GROUP),
+  ...actionBeforeRoute(page.GROUP,
+    () => '/' // if we can't see this group, go to home page
+  ),
   computed: {
     ...mapState(['user', 'group'])
   },
@@ -305,7 +330,9 @@ import { actionBeforeRoute } from 'vuex-router-actions'
 import { page } from './actions/Pages'
 
 export default {
-  ...actionBeforeRoute(page.CHANNEL),
+  ...actionBeforeRoute(page.CHANNEL,
+    (to) => '/' + to.params.group // if we can't see this channel, go to group page
+  ),
   computed: {
     ...mapState(['user', 'group', 'channel', 'messages'])
   }
@@ -411,47 +438,47 @@ export const loader = {
 export const loaders = actionsCached({
   [loader.USER]: {
     getKey: (context, user_id) => user_id,
-    handler: ({dispatch}, user_id) => dispatch(getter.USER, user_id)
+    action: ({dispatch}, user_id) => dispatch(getter.USER, user_id)
   },
   [loader.USER_GROUPS]: {
     getKey: (context, user) => user.group_ids,
-    handler: ({dispatch}, user) => Promise.all(user.group_ids.map(
+    action: ({dispatch}, user) => Promise.all(user.group_ids.map(
       (id, index) => dispatch(getter.GROUP, id).then(group => user.groups[index] = group)
     ))
   },
   [loader.GROUP]: {
     getKey: (context, group_id) => group_id,
-    handler: ({dispatch}, group_id) => dispatch(getter.GROUP, group_id)
+    action: ({dispatch}, group_id) => dispatch(getter.GROUP, group_id)
   },
   [loader.GROUP_USERS]: {
     getKey: (context, group) => group.user_ids,
-    handler: ({dispatch}, user) => Promise.all(group.user_ids.map(
+    action: ({dispatch}, user) => Promise.all(group.user_ids.map(
       (id, index) => dispatch(getter.USER, id).then(user => group.users[index] = user)
     ))
   },
   [loader.GROUP_CHANNELS]: {
     getKey: (context, group) => group.channel_ids,
-    handler: ({dispatch}, group) => Promise.all(group.channel_ids.map(
+    action: ({dispatch}, group) => Promise.all(group.channel_ids.map(
       (id, index) => dispatch(getter.CHANNEL, id).then(channel => user.channels[index] = channel)
     ))
   },
   [loader.CHANNEL]: {
     getKey: (context, channel_id) => channel_id,
-    handler: ({dispatch}, channel_id) => dispatch(getter.CHANNEL, channel_id)
+    action: ({dispatch}, channel_id) => dispatch(getter.CHANNEL, channel_id)
   },
   [loader.CHANNEL_USERS]: {
     getKey: (context, channel) => channel.user_ids,
-    handler: ({dispatch}, channel) => Promise.all(channel.user_ids.map(
+    action: ({dispatch}, channel) => Promise.all(channel.user_ids.map(
       (id, index) => dispatch(getter.USER, id).then(user => channel.users[index] = user)
     ))
   },
   [loader.CHANNEL_MESSAGES]: {
     getKey: (context, channel) => channel.id,
-    handler: ({dispatch}, channel) => dispatch(getter.MESSAGES, channel)
+    action: ({dispatch}, channel) => dispatch(getter.MESSAGES, channel)
   },
   [loader.MESSAGES_USERS]: {
     getKey: (context, messages) => Math.random(),
-    handler: ({dispatch}, messages) => Promise.all(messages.map(
+    action: ({dispatch}, messages) => Promise.all(messages.map(
       m => dispatch(getter.USER, m.user_id).then(user => m.user = user)
     ))
   }
@@ -474,26 +501,26 @@ export const getter = {
 export const getters = actionsCachedResults({
   [getter.USER]: {
     getResultKey: (context, id) => id,
-    handler: ({dispatch}, id) => {
+    action: ({dispatch}, id): Promise<User> => {
       // TODO return Promise which resolves a User instance with the given ID
     }
   },
   [getter.GROUP]: {
     getKey: ({state}) => state.user_id, // when user changes, clear group cache
     getResultKey: (context, id) => id,
-    handler: ({dispatch}, id) => {
+    action: ({dispatch}, id): Promise<Group> => {
       // TODO return Promise which resolves a Group instance with the given ID
     }
   },
   [getter.CHANNEL]: {
     getResultKey: (context, id) => id,
-    handler: ({dispatch}, id) => {
+    action: ({dispatch}, id): Promise<Channel> => {
       // TODO return Promise which resolves a Channel instance with the given ID
     }
   },
   [getter.MESSAGES]: {
     getResultKey: (context, channel) => channel.id,
-    handler: ({dispatch}, channel) => {
+    action: ({dispatch}, channel): Promise<Message[]> => {
       // TODO return Promise which resolves a Message[] array with the last N messages in the given channel
     }
   }
@@ -533,26 +560,26 @@ export const setters = {
 }
 ```
 
-## Auth
+## Session
 
 ```typescript
-// mutations/Auth.ts
+// mutations/Session.ts
 import { actionsDestroyCache } from 'vuex-router-actions'
 import { SlackState, getDefaultState } from '../State'
 import { store } from '../Store'
 
-export const auth = {
+export const session = {
   SIGN_OUT: 'signOut',
   SIGN_IN: 'signIn'
 }
 
-export const auths = {
-  [auth.SIGN_OUT] (state: SlackState) {
+export const sessions = {
+  [session.SIGN_OUT] (state: SlackState) {
     store.replaceState(getDefaultState())
     actionsDestroyCache()
     // router.$replace('/sign-in')
   },
-  [auth.SIGN_IN] (state: SlackState, {username, password}) {
+  [session.SIGN_IN] (state: SlackState, {username, password}) {
     // TODO takes username and password and does something with it. this might be better as an action
   }
 }

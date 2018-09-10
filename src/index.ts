@@ -1,5 +1,5 @@
 
-import { Store, ActionTree, ActionContext } from 'vuex'
+import { Store, Action, ActionTree, ActionContext } from 'vuex'
 
 
 
@@ -16,7 +16,7 @@ export interface ActionObject<S, R>
 export interface ActionCache<S, R>
 {
   getKey: (injectee: ActionContext<S, R>, payload: any) => any
-  handler: ActionHandler<S, R>
+  action: Action<S, R>
 }
 
 export interface ActionCaches<S, R>
@@ -28,7 +28,7 @@ export interface ActionResultCache<S, R>
 {
   getKey?: (injectee: ActionContext<S, R>, payload: any) => any,
   getResultKey: (injectee: ActionContext<S, R>, payload: any) => any,
-  handler: ActionHandler<S, R>
+  action: Action<S, R>
 }
 
 export interface ActionResultCaches<S, R>
@@ -40,7 +40,7 @@ export interface ActionResultCaches<S, R>
 export interface ActionCacheConditional<S, R>
 {
   isInvalid: (injectee: ActionContext<S, R>, payload: any) => any
-  handler: ActionHandler<S, R>
+  action: Action<S, R>
 }
 
 export interface ActionCacheConditionals<S, R>
@@ -79,7 +79,6 @@ export type ActionsCacheDestroyer = () => any
 
 
 const ASSERT_STORE = 'VuexRouterActions must be passed as a plugin to one store'
-const ASSERT_HANDLER = 'Cached action handler must be a function.'
 const ASSERT_IS_INVALID = 'Cached action isInvalid must be a function.'
 const ASSERT_GET_KEY = 'Cached action getKey must be a function.'
 const ASSERT_GET_RESULT_KEY = 'Cached action getResultKey must be a function.'
@@ -254,7 +253,7 @@ export function actionOptional <T>(promise: Promise<T>, resolveOnReject: () => a
  *      ...actionsCachedConditional({
  *        loadPage: {
  *          isInvalid: (context, payload) => true, // look at store, getters, payload, etc
- *          handler: (context, payload) => null // some result that can be cached
+ *          action: (context, payload) => null // some result that can be cached
  *        }
  *      })
  *    }
@@ -265,41 +264,57 @@ export function actionOptional <T>(promise: Promise<T>, resolveOnReject: () => a
  */
 export function actionsCachedConditional <S = any>(actions: ActionCacheConditionals<S, S>): ActionTree<S, S>
 {
-  const out = Object.create(null)
-  let cachedResults = Object.create(null)
+  return remap(actions, action => actionCachedConditional(action))
+}
+
+/**
+ * Produce an action with cached results based on some condition. The action will
+ * always run the first time.
+ *
+ * ```javascript
+ * const store = new Vuex.Store({
+ *    actions: {
+ *      loadPage: actionCachedConditional({
+ *        isInvalid: (context, payload) => true, // look at store, getters, payload, etc
+ *        action: (context, payload) => null // some result that can be cached
+ *      })
+ *    }
+ * })
+ * ```
+ *
+ * @param input The action to conditionally cache.
+ */
+export function actionCachedConditional <S = any>(input: ActionCacheConditional<S, S>): Action<S, S>
+{
+  const { action, isInvalid } = input
+
+  assert(typeof isInvalid === 'function', ASSERT_IS_INVALID)
+
+  let cachedResult = undefined
 
   cacheDestroyers.push(() =>
   {
-    cachedResults = Object.create(null)
+    cachedResult = undefined
   })
 
-  for (const key in actions)
+  return actionTransform(action, '', handler =>
   {
-    const action = actions[key]
-    const { handler, isInvalid } = action
-
-    assert(typeof handler === 'function', ASSERT_HANDLER)
-    assert(typeof isInvalid === 'function', ASSERT_IS_INVALID)
-
-    out[key] = function(context, payload)
+    return function(context, payload)
     {
-      if (!(key in cachedResults) || isInvalid.call(this, context, payload))
+      if (cachedResult === undefined || isInvalid.call(this, context, payload))
       {
-        cachedResults[key] = handler.call(this, context, payload)
+        cachedResult = handler.apply(this, arguments)
       }
 
-      return cachedResults[key]
+      return cachedResult
     }
-  }
-
-  return out
+  })
 }
 
 /**
  * Produces actions with cached results based on some cache key. The action will
- * always run the first time unless the cache key returned `undefined`. The
- * cached results of the action are "cleared" when a different key is returned
- * for a given action.
+ * always run the first time. The cached results of the action are "cleared"
+ * when a different key is returned for a given action.
  *
  * ```javascript
  * const store = new Vuex.Store({
@@ -307,7 +322,7 @@ export function actionsCachedConditional <S = any>(actions: ActionCacheCondition
  *      ...actionsCached({
  *        loadPage: {
  *          getKey: (context, payload) => payload, // look at store, getters, payload, etc
- *          handler: (context, payload) => null // some result that can be cached
+ *          action: (context, payload) => null // some result that can be cached
  *        }
  *      })
  *    }
@@ -322,39 +337,62 @@ export function actionsCachedConditional <S = any>(actions: ActionCacheCondition
 export function actionsCached <S = any>(actions: ActionCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>
 {
   const cacheOptions = parseCacheOptions({}, options, cache)
-  const out = Object.create(null)
-  let cachedResults = Object.create(null)
-  let cachedKeys = Object.create(null)
+
+  return remap(actions, action => actionCached(action, cacheOptions))
+}
+
+/**
+ * Produces actions with cached results based on some cache key. The action will
+ * always run the first time. The cached results of the action are "cleared"
+ * when a different key is returned for a given action.
+ *
+ * ```javascript
+ * const store = new Vuex.Store({
+ *    actions: {
+ *      loadPage: actionCached({
+ *        getKey: (context, payload) => payload, // look at store, getters, payload, etc
+ *        action: (context, payload) => null // some result that can be cached
+ *      })
+ *    }
+ * })
+ * ```
+ *
+ * @param actions The actions to cache.
+ * @param cache Cache options to override the global options passed to the
+ *    plugin. If an option is not passed in the input it defaults to the
+ *    equivalent plugin option.
+ */
+export function actionCached <S = any>(input: ActionCache<S, S>, cache?: Partial<ActionsCacheOptions>): Action<S, S>
+{
+  const cacheOptions = parseCacheOptions({}, options, cache)
+  const { action, getKey } = input
+
+  assert(typeof getKey === 'function', ASSERT_GET_KEY)
+
+  let cacheKey: string | undefined = undefined
+  let cacheResults = undefined
 
   cacheDestroyers.push(() =>
   {
-    cachedKeys = Object.create(null)
-    cachedResults = Object.create(null)
+    cacheKey = undefined
+    cacheResults = undefined
   })
 
-  for (const key in actions)
+  return actionTransform(action, '', handler =>
   {
-    const action = actions[key]
-    const { handler, getKey } = action
-
-    assert(typeof handler === 'function', ASSERT_HANDLER)
-    assert(typeof getKey === 'function', ASSERT_GET_KEY)
-
-    out[key] = function(context, payload)
+    return function(context, payload)
     {
-      const cacheKey = cacheOptions.createCacheKey(getKey.call(this, context, payload))
+      const key = cacheOptions.createCacheKey(getKey.call(this, context, payload))
 
-      if (cacheKey !== cachedKeys[key])
+      if (cacheKey === undefined || key !== cacheKey)
       {
-        cachedKeys[key] = cacheKey
-        cachedResults[key] = handler.call(this, context, payload)
+        cacheKey = key
+        cacheResults = handler.apply(this, arguments)
       }
 
-      return cachedResults[key]
+      return cacheResults
     }
-  }
-
-  return out
+  })
 }
 
 /**
@@ -373,47 +411,61 @@ export function actionsCached <S = any>(actions: ActionCaches<S, S>, cache?: Par
 export function actionsCachedResults <S = any>(actions: ActionResultCaches<S, S>, cache?: Partial<ActionsCacheOptions>): ActionTree<S, S>
 {
   const cacheOptions = parseCacheOptions({}, options, cache)
-  const out = Object.create(null)
 
-  for (const key in actions)
+  return remap(actions, action => actionCachedResults(action, cacheOptions))
+}
+
+/**
+ * Produce an action with multiple cached results. The action has a `getKey`
+ * function which is optional - when the result of that function changes it
+ * clears the cache for all the results for that action. Each action has a
+ * required `getResultKey` function which is unique to that action call - and
+ * if that key has not ran for that action it is ran, otherwise the cached
+ * result is returned.
+ *
+ * @param actions The action to cache all the results of.
+ * @param cache Cache options to override the global options passed to the
+ *    plugin. If an option is not passed in the input it defaults to the
+ *    equivalent plugin option.
+ */
+export function actionCachedResults <S = any>(input: ActionResultCache<S, S>, cache?: Partial<ActionsCacheOptions>): Action<S, S>
+{
+  const cacheOptions = parseCacheOptions({}, options, cache)
+  const { action, getKey, getResultKey } = input
+
+  assert(typeof getResultKey === 'function', ASSERT_GET_RESULT_KEY)
+
+  let cachedKey: string | undefined = undefined
+  let cachedResults = Object.create(null)
+
+  cacheDestroyers.push(() =>
   {
-    const action = actions[key]
-    const { handler, getKey, getResultKey } = action
+    cachedKey = undefined
+    cachedResults = Object.create(null)
+  })
 
-    assert(typeof handler === 'function', ASSERT_HANDLER)
-    assert(typeof getResultKey === 'function', ASSERT_GET_RESULT_KEY)
-
-    let cachedResults = Object.create(null)
-    let cachedActionKey: string | undefined = undefined
-
-    cacheDestroyers.push(() =>
+  return actionTransform(action, '', handler =>
+  {
+    return function(context, payload)
     {
-      cachedResults = Object.create(null)
-      cachedActionKey = undefined
-    })
+      const key = getKey ? cacheOptions.createCacheKey(getKey.call(this, context, payload)) : undefined
 
-    out[key] = function(context, payload)
-    {
-      const actionKey = getKey ? cacheOptions.createCacheKey(getKey.call(this, context, payload)) : undefined
-
-      if (actionKey !== cachedActionKey)
+      if (key !== cachedKey)
       {
-        cachedActionKey = actionKey
+        cachedKey = key
         cachedResults = Object.create(null)
       }
 
-      const cacheKey = cacheOptions.createCacheKey(getResultKey.call(this, context, payload))
+      const resultKey = cacheOptions.createCacheKey(getResultKey.call(this, context, payload))
 
-      if (!(cacheKey in cachedResults))
+      if (!(resultKey in cachedResults))
       {
-        cachedResults[cacheKey] = handler.call(this, context, payload)
+        cachedResults[resultKey] = handler.apply(this, arguments)
       }
 
-      return cachedResults[cacheKey]
+      return cachedResults[resultKey]
     }
-  }
-
-  return out
+  })
 }
 
 /**
@@ -474,11 +526,11 @@ export function actionsWatch <S = any>(actions: ActionTree<S, S>, watch?: Partia
     }
   }
 
-  return actionsIterate(actions, (action, key) =>
+  return actionsTransform(actions, (action, key) =>
   {
     return function (context, payload)
     {
-      const result = action.call( this, context, payload )
+      const result = action.apply( this, arguments )
       const num: number = getNum()
 
       if (result instanceof Promise)
@@ -550,11 +602,11 @@ export function actionsWatch <S = any>(actions: ActionTree<S, S>, watch?: Partia
  */
 export function actionsProtect <S = any>(actions: ActionTree<S, S>): ActionTree<S, S>
 {
-  return actionsIterate(actions, action =>
+  return actionsTransform(actions, action =>
   {
     return function(context, payload)
     {
-      const result = action.call( this, context, payload )
+      const result = action.apply( this, arguments )
 
       return toPromise(result)
     }
@@ -629,11 +681,11 @@ export function actionsLoading <S = any>(input: ActionLoadingInput<S, S>, action
     }
   }
 
-  return actionsIterate(actions, (action) =>
+  return actionsTransform(actions, (action) =>
   {
     return function(context, payload)
     {
-      const result = action.call( this, context, payload )
+      const result = action.apply( this, arguments )
 
       if (result instanceof Promise)
       {
@@ -680,32 +732,27 @@ function parseCacheOptions (out: Partial<ActionsCacheOptions>, defaults: Actions
 }
 
 // Iterates Vuex action input and returns a similar structure but with the handler replaced.
-function actionsIterate <S = any>(actions: ActionTree<S, S>, getHandler: ActionHandlerTransform<S, S>): ActionTree<S, S>
+function actionsTransform <S = any>(actions: ActionTree<S, S>, getHandler: ActionHandlerTransform<S, S>): ActionTree<S, S>
 {
-  const iterated = Object.create(null)
+  return remap(actions, (action, key) => actionTransform(action, key, getHandler))
+}
 
-  for (const key in actions)
+// Transforms the given action into another action which has a decorated handler.
+function actionTransform <S = any>(action: Action<S, S>, key: string, getHandler: ActionHandlerTransform<S, S>): Action<S, S>
+{
+  if (isActionHandler(action))
   {
-    const action = actions[key]
-
-    if (isActionHandler(action))
-    {
-      iterated[key] = getHandler(action, key)
-    }
-    else if (isActionObject(action))
-    {
-      iterated[key] = {
-        root: action.root,
-        handler: getHandler(action.handler, key)
-      }
-    }
-    else
-    {
-      assert(false, ASSERT_ACTION_INVALID)
+    return getHandler(action, key)
+  }
+  else if (isActionObject(action))
+  {
+    return {
+      root: action.root,
+      handler: getHandler(action.handler, key)
     }
   }
 
-  return iterated
+  throw ASSERT_ACTION_INVALID
 }
 
 // Converts the result to a promise. If its not a promise then its truthy value
@@ -740,8 +787,27 @@ function isActionLoadingHandler <S, R>(x: any): x is ActionLoadingHandler<S, R>
   return typeof x === 'function'
 }
 
+// Creates a new map
+function remap <S, E>( map: { [key: string]: S }, mapper: (start: S, key: string) => E ): { [key: string] : E }
+{
+  const remapped = Object.create(null)
+
+  for (let key in map)
+  {
+    remapped[key] = mapper(map[key], key)
+  }
+
+  return remapped
+}
+
 // Asserts the expecation, and when it's fasly throws an error.
 function assert (expectation: boolean, message: string)
 {
   if (!expectation) throw message
+}
+
+// Asserts that the given input is an action
+function assertAction (x: any, message: string)
+{
+  assert(isActionHandler(x) || isActionObject(x), message)
 }
