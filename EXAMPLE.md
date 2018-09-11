@@ -8,6 +8,23 @@ This App will be a clone of Slack. Slack is a communication App with groups, cha
 This example will utilize Typescript but should easily be converted to plain Babel, JS, etc.
 The app will utilize `Vue`, `Vuex`, `VueRouter`, and `VuexRouterActions`
 
+## Concepts
+
+- **Get**: An action which fetches data from an API. The result of the action is Promise which resolves the fetched data.
+- **Set**: A mutation which is given a gotten value and applies it to the store state.
+- **Load**: An action which calls get many times and returns an array of values
+- **Relate**: An action which calls one or more gets or loads and populates references and relationships.
+- **Protect**: An action which analyzes the state and a desired route to determine if the user can proceed to that route.
+- **Page**: An action which does everything that needs to be done for a page:
+  - Load parent page if one exists
+  - Load data identified in route
+  - Do preliminary checks to see if user can go to route
+  - Load the remaining data for the page
+  - Do a final check based on the loaded data
+  - Apply the loaded data to the state
+  - *The page loads!*
+- **Session**: Mutations used to modify the user's session/store state
+
 ## Project Structure
 
 - [Models.ts](#models)
@@ -21,29 +38,14 @@ The app will utilize `Vue`, `Vuex`, `VueRouter`, and `VuexRouterActions`
   - [GroupPage.vue](#grouppage-vue)
   - [ChannelPage.vue](#channelpage-vue)
 - **actions/**
-  - [Loaders.ts](#loaders)
-  - [Protectors.ts](#protectors)
+  - [Gets.ts](#gets)
+  - [Loads.ts](#loads)
+  - [Relates.ts](#relates)
+  - [Protects.ts](#protects)
   - [Pages.ts](#pages)
-  - [Getters.ts](#getters)
 - **mutations/**
-  - [Setters.ts](#setters)
+  - [Sets.ts](#sets)
   - [Session.ts](#session)
-
-## Concepts
-
-- **Getter**: An action which fetches data from an API. The result of the action is Promise which resolves the fetched data.
-- **Setter**: A mutation which is given a gotten value and applies it to the store state.
-- **Loader**: An action which calls one or more getters and populates references and relationships.
-- **Protector**: An action which analyzes the state and a desired route to determine if the user can proceed to that route.
-- **Page**: An action which does everything that needs to be done for a page:
-  - Load parent page if one exists
-  - Load data identified in route
-  - Do preliminary checks to see if user can go to route
-  - Load the remaining data for the page
-  - Do a final check based on the loaded data
-  - Apply the loaded data to the state
-  - *The page loads!*
-- **Session**: Mutations used to modify the user's session/store state
 
 ## Models
 
@@ -166,11 +168,12 @@ import VuexRouterActions, { actionsWatch } from 'vuex-router-actions'
 
 import { DEBUG_OPTIONS } from './Debug'
 import { SlackState, getDefaultState } from './State'
-import { setters } from './mutations/Setters'
+import { sets } from './mutations/Sets'
 import { sessions } from './mutations/Session'
-import { getters } from './actions/Getters'
-import { loaders } from './actions/Loaders'
-import { protects } from './actions/Protectors'
+import { gets } from './actions/Gets'
+import { relates } from './actions/Relates'
+import { loads } from './actions/Loads'
+import { protects } from './actions/Protects'
 import { pages } from './actions/Pages'
 
 export const plugin = VuexRouterActions( DEBUG_OPTIONS )
@@ -179,12 +182,13 @@ export const store = new Vuex.Store<SlackState>({
   plugins: [plugin],
   state: getDefaultState(),
   mutations: {
-    ...setters,
+    ...sets,
     ...sessions
   },
   actions: actionsWatch({
-    ...getters,
-    ...loaders,
+    ...gets,
+    ...loads,
+    ...relates,
     ...protects,
     ...pages
   })
@@ -345,9 +349,9 @@ export default {
 ```typescript
 // actions/Pages.ts
 import { actionsLoading } from 'vuex-router-actions'
-import { setter } from '../mutations/Setters'
-import { loader } from './Loaders'
-import { protect } from './Protectors'
+import { set } from '../mutations/Sets'
+import { relate } from './Relates'
+import { protect } from './Protects'
 
 export const page = {
   HOME: 'pageHome',
@@ -355,47 +359,46 @@ export const page = {
   CHANNEL: 'pageChannel'
 }
 
-export const pages = actionsLoading(setter.LOADING, {
+export const pages = actionsLoading(set.LOADING, {
   // load the user based on ID, check they are valid, then set the user to the store and load its groups from group_ids
   [page.HOME] ({dispatch, state}, {params}) {
-    return dispatch(loader.USER, state.user_id)
+    return dispatch(get.USER, state.user_id)
       .then(user => dispatch(protect.HOME)
-        .then(a => commit(setter.USER, user))
-        .then(b => dispatch(loader.USER_GROUPS, user))
+        .then(() => dispatch(relate.USER_GROUPS, user))
+        .then(() => commit(set.USER, user))
       )
   },
   // load the home, then based on the route load the group, check for access, and if it passes set the group to the store and load the groups users and channels
   [page.GROUP] ({dispatch}, {params}) {
     return dispatch(page.HOME)
-      .then(user => dispatch(loader.GROUP, params.group))
+      .then(() => dispatch(get.GROUP, params.group))
       .then(group => dispatch(protect.GROUP, group)
-        .then(a => commit(setter.GROUP, group))
-        .then(b => dispatch(loader.GROUP_USERS, group))
-        .then(c => dispatch(loader.GROUP_CHANNELS, group))
+        .then(() => dispatch(relate.GROUP_USERS, group))
+        .then(() => dispatch(relate.GROUP_CHANNELS, group))
+        .then(() => commit(set.GROUP, group))
       )
   },
   // load the group, then based on the route load the channel, check for access, and if it passes set the channel to the store and load the channel users and messages
   [page.CHANNEL] ({dispatch}, {params}) {
     return dispatch(page.GROUP)
-      .then(group => dispatch(loader.CHANNEL, params.channel))
+      .then(() => dispatch(get.CHANNEL, params.channel))
       .then(channel => dispatch(protect.CHANNEL, channel)
-        .then(a => commit(setter.CHANNEL, channel))
-        .then(b => dispatch(loader.CHANNEL_USERS, channel))
-        .then(c => dispatch(loader.CHANNEL_MESSAGES, channel))
-        .then(messages => dispatch(loader.MESSAGES_USERS, messages)
-          .then(d => commit(setter.MESSAGES, messages))
+        .then(() => dispatch(relate.CHANNEL_USERS, channel))
+        .then(() => dispatch(get.MESSAGES, channel))
+        .then(messages => dispatch(relate.MESSAGES_USERS, messages)
+          .then(() => commit(set.MESSAGES, messages))
+          .then(() => commit(set.CHANNEL, channel))
         )
       )
   }
 })
 ```
 
-## Protectors
+## Protects
 
 ```typescript
-// actions/Protectors.ts
+// actions/Protects.ts
 import { actionsProtect } from 'vuex-router-actions'
-import { setter } from '../mutations/Setters'
 
 export const protect = {
   HOME: 'protectHome',
@@ -416,109 +419,106 @@ export const protects = actionsProtect({
 })
 ```
 
-## Loaders
+## Relates
 
 ```typescript
-// actions/Loaders.ts
+// actions/Relates.ts
 import { actionsCached } from 'vuex-router-actions'
-import { getter } from './Getters'
+import { get } from './Gets'
+import { load } from './Loads'
 
-export const loader = {
-  USER: 'loadUser',
-  USER_GROUPS: 'loadUserGroups',
-  GROUP: 'loadGroup',
-  GROUP_USERS: 'loadGroupUser',
-  GROUP_CHANNELS: 'loadGroupChannels',
-  CHANNEL: 'loadChannel',
-  CHANNEL_USERS: 'loadChannelUsers',
-  CHANNEL_MESSAGES: 'loadChannelMessages',
-  MESSAGES_USERS: 'loadMessagesUsers'
+export const relate = {
+  USER_GROUPS: 'relateUserGroups',
+  GROUP_USERS: 'relateGroupUser',
+  GROUP_CHANNELS: 'relateGroupChannels',
+  CHANNEL_USERS: 'relateChannelUsers',
+  MESSAGES_USERS: 'relateMessagesUsers'
 }
 
-export const loaders = actionsCached({
-  [loader.USER]: {
-    getKey: (context, user_id) => user_id,
-    action: ({dispatch}, user_id) => dispatch(getter.USER, user_id)
+export const relates = {
+  [relate.USER_GROUPS] ({dispatch}, user) {
+    return dispatch(load.GROUPS, user.group_ids).then(groups => user.group = groups)
   },
-  [loader.USER_GROUPS]: {
-    getKey: (context, user) => user.group_ids,
-    action: ({dispatch}, user) => Promise.all(user.group_ids.map(
-      (id, index) => dispatch(getter.GROUP, id).then(group => user.groups[index] = group)
+  [relate.GROUP_USERS] ({dispatch}, group) {
+    return dispatch(load.USERS, group.user_ids).then(users => group.users = users)
+  },
+  [relate.GROUP_CHANNELS] ({dispatch}, group) {
+    return dispatch(load.CHANNELS, group.channel_ids).then(channels => group.channels = channels)
+  },
+  [relate.CHANNEL_USERS] ({dispatch}, channel) {
+    return dispatch(load.USERS, channel.user_ids).then(users => channel.users = users)
+  },
+  [relate.MESSAGES_USERS] ({dispatch}, messages) {
+    return Promise.all(messages.map(
+      m => dispatch(get.USER, m.user_id).then(user => m.user = user)
     ))
+  }
+}
+```
+
+## Loads
+
+```typescript
+// actions/Loads.ts
+import { actionsCached } from 'vuex-router-actions'
+import { get } from './Gets'
+
+export const load = {
+  USERS: 'loadUsers',
+  GROUPS: 'loadGroups',
+  CHANNELS: 'loadChannels'
+}
+
+export const loads = actionsCached({
+  [load.GROUPS]: {
+    getKey: (context, group_ids) => group_ids,
+    action: ({dispatch}, group_ids) => Promise.all(group_ids.map(id => dispatch(get.GROUP, id)))
   },
-  [loader.GROUP]: {
-    getKey: (context, group_id) => group_id,
-    action: ({dispatch}, group_id) => dispatch(getter.GROUP, group_id)
+  [load.USERS]: {
+    getKey: (context, user_ids) => user_ids,
+    action: ({dispatch}, user) => Promise.all(user_ids.map(id => dispatch(get.USER, id)))
   },
-  [loader.GROUP_USERS]: {
-    getKey: (context, group) => group.user_ids,
-    action: ({dispatch}, user) => Promise.all(group.user_ids.map(
-      (id, index) => dispatch(getter.USER, id).then(user => group.users[index] = user)
-    ))
-  },
-  [loader.GROUP_CHANNELS]: {
-    getKey: (context, group) => group.channel_ids,
-    action: ({dispatch}, group) => Promise.all(group.channel_ids.map(
-      (id, index) => dispatch(getter.CHANNEL, id).then(channel => user.channels[index] = channel)
-    ))
-  },
-  [loader.CHANNEL]: {
-    getKey: (context, channel_id) => channel_id,
-    action: ({dispatch}, channel_id) => dispatch(getter.CHANNEL, channel_id)
-  },
-  [loader.CHANNEL_USERS]: {
-    getKey: (context, channel) => channel.user_ids,
-    action: ({dispatch}, channel) => Promise.all(channel.user_ids.map(
-      (id, index) => dispatch(getter.USER, id).then(user => channel.users[index] = user)
-    ))
-  },
-  [loader.CHANNEL_MESSAGES]: {
-    getKey: (context, channel) => channel.id,
-    action: ({dispatch}, channel) => dispatch(getter.MESSAGES, channel)
-  },
-  [loader.MESSAGES_USERS]: {
-    getKey: (context, messages) => Math.random(),
-    action: ({dispatch}, messages) => Promise.all(messages.map(
-      m => dispatch(getter.USER, m.user_id).then(user => m.user = user)
-    ))
+  [load.CHANNELS]: {
+    getKey: (context, channel_ids) => channel_ids,
+    action: ({dispatch}, channel_ids) => Promise.all(channel_ids.map(id => dispatch(get.CHANNEL, id)))
   }
 })
 ```
 
-## Getters
+## Gets
 
 ```typescript
-// actions/Getters.ts
+// actions/Gets.ts
 import { actionsCachedResults } from 'vuex-router-actions'
 
-export const getter = {
+export const get = {
   USER: 'getUser',
   GROUP: 'getGroup',
   CHANNEL: 'getChannel',
   MESSAGES: 'getMessages'
 }
 
-export const getters = actionsCachedResults({
-  [getter.USER]: {
+export const gets = actionsCachedResults({
+  [get.USER]: {
     getResultKey: (context, id) => id,
     action: ({dispatch}, id): Promise<User> => {
       // TODO return Promise which resolves a User instance with the given ID
     }
   },
-  [getter.GROUP]: {
+  [get.GROUP]: {
     getKey: ({state}) => state.user_id, // when user changes, clear group cache
     getResultKey: (context, id) => id,
     action: ({dispatch}, id): Promise<Group> => {
       // TODO return Promise which resolves a Group instance with the given ID
     }
   },
-  [getter.CHANNEL]: {
+  [get.CHANNEL]: {
     getResultKey: (context, id) => id,
     action: ({dispatch}, id): Promise<Channel> => {
       // TODO return Promise which resolves a Channel instance with the given ID
     }
   },
-  [getter.MESSAGES]: {
+  [get.MESSAGES]: {
     getResultKey: (context, channel) => channel.id,
     action: ({dispatch}, channel): Promise<Message[]> => {
       // TODO return Promise which resolves a Message[] array with the last N messages in the given channel
@@ -527,13 +527,13 @@ export const getters = actionsCachedResults({
 })
 ```
 
-## Setters
+## Sets
 
 ```typescript
-// mutations/Setters.ts
+// mutations/Sets.ts
 import { SlackState } from '../State'
 
-export const setter = {
+export const set = {
   USER: 'setUser',
   GROUP: 'setGroup',
   CHANNEL: 'setChannel',
@@ -541,20 +541,20 @@ export const setter = {
   LOADING: 'setLoading'
 }
 
-export const setters = {
-  [setter.USER] (state: SlackState, user: User) {
+export const sets = {
+  [set.USER] (state: SlackState, user: User) {
     state.user = user
   },
-  [setter.GROUP] (state: SlackState, group: Group) {
+  [set.GROUP] (state: SlackState, group: Group) {
     state.group = group
   },
-  [setter.USER] (state: SlackState, channel: Channel) {
+  [set.USER] (state: SlackState, channel: Channel) {
     state.channel = channel
   },
-  [setter.MESSAGES] (state: SlackState, messages: Message[]) {
+  [set.MESSAGES] (state: SlackState, messages: Message[]) {
     state.messages = messages
   },
-  [setter.LOADING] (state: SlackState, loading: boolean) {
+  [set.LOADING] (state: SlackState, loading: boolean) {
     state.loading = loading
   }
 }
