@@ -476,7 +476,7 @@ export const loads = actionsCached({
   },
   [load.USERS]: {
     getKey: (context, user_ids) => user_ids,
-    action: ({dispatch}, user) => Promise.all(user_ids.map(id => dispatch(get.USER, id)))
+    action: ({dispatch}, user_ids) => Promise.all(user_ids.map(id => dispatch(get.USER, id)))
   },
   [load.CHANNELS]: {
     getKey: (context, channel_ids) => channel_ids,
