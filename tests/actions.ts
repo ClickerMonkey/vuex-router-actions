@@ -20,6 +20,8 @@ import VuexRouterActions, {
   actionsLoading
 } from '../src'
 
+
+
 const DEFAULT_OPTIONS = {
   onActionStart: (action: string, num: number) => {},
   onActionReject: (action: string, num: number, reason: any) => {},
@@ -532,6 +534,57 @@ describe('actions', function()
         }
       )
 
+  })
+
+  it('actionsCached onFree', function()
+  {
+    const plugin = VuexRouterActions()
+
+    type TestStore = {}
+
+    let refreshes: number = 0
+    let frees: number = 0
+
+    const store = new Vuex.Store<TestStore>({
+      plugins: [plugin],
+      actions: {
+        ...actionsCached({
+          refresh: {
+            getKey: () => 23,
+            action: () => ++refreshes,
+            onFree: () => ++frees
+          }
+        })
+      }
+    })
+
+    expect(refreshes).to.equal(0)
+    expect(frees).to.equal(0)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(1)
+    expect(frees).to.equal(0)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(1)
+    expect(frees).to.equal(0)
+
+    actionsDestroyCache()
+
+    expect(refreshes).to.equal(1)
+    expect(frees).to.equal(1)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(2)
+    expect(frees).to.equal(1)
+
+    store.dispatch('refresh')
+
+    expect(refreshes).to.equal(2)
+    expect(frees).to.equal(1)
   })
 
   it('actionsDestroyCache actionsCached', function()

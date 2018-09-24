@@ -8,6 +8,7 @@ export interface ActionObject<S, R> {
 export interface ActionCache<S, R> {
     getKey: (injectee: ActionContext<S, R>, payload: any) => any;
     action: Action<S, R>;
+    onFree?: (result: any) => any;
 }
 export interface ActionCaches<S, R> {
     [key: string]: ActionCache<S, R>;
@@ -16,6 +17,7 @@ export interface ActionResultCache<S, R> {
     getKey?: (injectee: ActionContext<S, R>, payload: any) => any;
     getResultKey: (injectee: ActionContext<S, R>, payload: any) => any;
     action: Action<S, R>;
+    onFree?: (result: any) => any;
 }
 export interface ActionResultCaches<S, R> {
     [key: string]: ActionResultCache<S, R>;
@@ -23,11 +25,15 @@ export interface ActionResultCaches<S, R> {
 export interface ActionCacheConditional<S, R> {
     isInvalid: (injectee: ActionContext<S, R>, payload: any) => any;
     action: Action<S, R>;
+    onFree?: (result: any) => any;
 }
 export interface ActionCacheConditionals<S, R> {
     [key: string]: ActionCacheConditional<S, R>;
 }
 export declare type ActionRouteOtherwise = (to: any, from: any, rejectReason: any, store: any, action: any) => any;
+export declare type ActionRouteName = string;
+export declare type ActionRouteNameCallback = (to: any, from: any, store: any) => string;
+export declare type ActionRouteNameInput = ActionRouteName | ActionRouteNameCallback;
 export declare type ActionLoadingHandler<S, R> = (injectee: ActionContext<S, R>, loading: boolean) => any;
 export declare type ActionLoadingInput<S, R> = string | ActionLoadingHandler<S, R>;
 export interface ActionsPluginOptions extends ActionsWatchOptions {
@@ -111,12 +117,35 @@ export declare function actionsDestroyCache(): void;
  * </script>
  * ```
  *
- * @param action The action to dispatch on the store and watch for.
+ * @param actionInput The action to dispatch on the store and wait for.
  * @param getOtherwise Where to go if the dispatched action is a reject.
  */
-export declare function actionBeforeRoute(action: string, getOtherwise?: ActionRouteOtherwise): {
+export declare function actionBeforeRoute(actionInput: ActionRouteNameInput, getOtherwise?: ActionRouteOtherwise): {
     beforeRouteEnter: (to: any, from: any, next: any) => void;
     beforeRouteUpdate: (to: any, from: any, next: any) => void;
+};
+/**
+ * Dispatches an action in the store and optionally waits for the action to
+ * finish before leaving the current component (see `beforeRouteLeave` in
+ * `vue-router`).
+ *
+ * ```javascript
+ * // MyPage.vue
+ * <script>
+ * import { actionBeforeLeave } from 'vuex-router-actions'
+ *
+ * export default {
+ *   ...actionBeforeLeave('unloadMyPage')
+ * }
+ * </script>
+ * ```
+ *
+ * @param actionInput The action to dispatch on the store and optionally wait for.
+ * @param waitForFinish If the unload action should finish before the component
+ *    is left.
+ */
+export declare function actionBeforeLeave(actionInput: ActionRouteNameInput, waitForFinish?: boolean): {
+    beforeRouteLeave: (to: any, from: any, next: any) => void;
 };
 /**
  * Allows you to pass the results of a dispath through this function and whether

@@ -17,6 +17,7 @@ export interface ActionCache<S, R>
 {
   getKey: (injectee: ActionContext<S, R>, payload: any) => any
   action: Action<S, R>
+  onFree?: (result: any) => any
 }
 
 export interface ActionCaches<S, R>
@@ -29,6 +30,7 @@ export interface ActionResultCache<S, R>
   getKey?: (injectee: ActionContext<S, R>, payload: any) => any,
   getResultKey: (injectee: ActionContext<S, R>, payload: any) => any,
   action: Action<S, R>
+  onFree?: (result: any) => any
 }
 
 export interface ActionResultCaches<S, R>
@@ -41,6 +43,7 @@ export interface ActionCacheConditional<S, R>
 {
   isInvalid: (injectee: ActionContext<S, R>, payload: any) => any
   action: Action<S, R>
+  onFree?: (result: any) => any
 }
 
 export interface ActionCacheConditionals<S, R>
@@ -49,6 +52,12 @@ export interface ActionCacheConditionals<S, R>
 }
 
 export type ActionRouteOtherwise = (to, from, rejectReason, store, action) => any
+
+export type ActionRouteName = string
+
+export type ActionRouteNameCallback = (to, from, store) => string
+
+export type ActionRouteNameInput = ActionRouteName | ActionRouteNameCallback;
 
 export type ActionLoadingHandler<S, R> = (injectee: ActionContext<S, R>, loading: boolean) => any
 
@@ -198,16 +207,18 @@ export function actionsDestroyCache(): void
  * </script>
  * ```
  *
- * @param action The action to dispatch on the store and watch for.
+ * @param actionInput The action to dispatch on the store and wait for.
  * @param getOtherwise Where to go if the dispatched action is a reject.
  */
-export function actionBeforeRoute (action: string, getOtherwise: ActionRouteOtherwise = DEFAULT_OTHERWISE)
+export function actionBeforeRoute (actionInput: ActionRouteNameInput, getOtherwise: ActionRouteOtherwise = DEFAULT_OTHERWISE)
 {
   const dispatch = (to, from, next) =>
   {
     assert(store !== undefined, ASSERT_STORE)
 
-    store.dispatch(action, to).then(
+    const action = toAction(actionInput, to, from)
+
+    store.dispatch(action, {to, from}).then(
       (resolved) => {
         next()
       },
@@ -222,6 +233,49 @@ export function actionBeforeRoute (action: string, getOtherwise: ActionRouteOthe
     beforeRouteUpdate: dispatch
   }
 }
+
+/**
+ * Dispatches an action in the store and optionally waits for the action to
+ * finish before leaving the current component (see `beforeRouteLeave` in
+ * `vue-router`).
+ *
+ * ```javascript
+ * // MyPage.vue
+ * <script>
+ * import { actionBeforeLeave } from 'vuex-router-actions'
+ *
+ * export default {
+ *   ...actionBeforeLeave('unloadMyPage')
+ * }
+ * </script>
+ * ```
+ *
+ * @param actionInput The action to dispatch on the store and optionally wait for.
+ * @param waitForFinish If the unload action should finish before the component
+ *    is left.
+ */
+export function actionBeforeLeave (actionInput: ActionRouteNameInput, waitForFinish: boolean = false)
+{
+  const dispatch = (to, from, next) =>
+  {
+    assert(store !== undefined, ASSERT_STORE)
+
+    const action = toAction(actionInput, to, from)
+    const finish = () => waitForFinish ? next() : undefined
+
+    store.dispatch(action, {to, from}).then(finish, finish)
+
+    if (!waitForFinish) {
+      next()
+    }
+  }
+
+  return {
+    beforeRouteLeave: dispatch
+  }
+}
+
+
 
 /**
  * Allows you to pass the results of a dispath through this function and whether
@@ -286,16 +340,23 @@ export function actionsCachedConditional <S = any>(actions: ActionCacheCondition
  */
 export function actionCachedConditional <S = any>(input: ActionCacheConditional<S, S>): Action<S, S>
 {
-  const { action, isInvalid } = input
+  const { action, isInvalid, onFree } = input
 
   assert(typeof isInvalid === 'function', ASSERT_IS_INVALID)
 
   let cachedResult = undefined
 
-  cacheDestroyers.push(() =>
+  const clearResult = () =>
   {
+    if (cachedResult !== undefined && onFree)
+    {
+      onFree.call(store, cachedResult)
+    }
+
     cachedResult = undefined
-  })
+  }
+
+  cacheDestroyers.push(clearResult)
 
   return actionTransform(action, '', handler =>
   {
@@ -303,6 +364,7 @@ export function actionCachedConditional <S = any>(input: ActionCacheConditional<
     {
       if (cachedResult === undefined || isInvalid.call(this, context, payload))
       {
+        clearResult()
         cachedResult = handler.apply(this, arguments)
       }
 
@@ -365,18 +427,25 @@ export function actionsCached <S = any>(actions: ActionCaches<S, S>, cache?: Par
 export function actionCached <S = any>(input: ActionCache<S, S>, cache?: Partial<ActionsCacheOptions>): Action<S, S>
 {
   const cacheOptions = parseCacheOptions({}, options, cache)
-  const { action, getKey } = input
+  const { action, getKey, onFree } = input
 
   assert(typeof getKey === 'function', ASSERT_GET_KEY)
 
   let cacheKey: string | undefined = undefined
   let cacheResults = undefined
 
-  cacheDestroyers.push(() =>
+  const clearResult = () =>
   {
+    if (cacheResults !== undefined && onFree)
+    {
+      onFree.call(store, cacheResults)
+    }
+
     cacheKey = undefined
     cacheResults = undefined
-  })
+  }
+
+  cacheDestroyers.push(clearResult)
 
   return actionTransform(action, '', handler =>
   {
@@ -386,6 +455,7 @@ export function actionCached <S = any>(input: ActionCache<S, S>, cache?: Partial
 
       if (cacheKey === undefined || key !== cacheKey)
       {
+        clearResult()
         cacheKey = key
         cacheResults = handler.apply(this, arguments)
       }
@@ -431,18 +501,28 @@ export function actionsCachedResults <S = any>(actions: ActionResultCaches<S, S>
 export function actionCachedResults <S = any>(input: ActionResultCache<S, S>, cache?: Partial<ActionsCacheOptions>): Action<S, S>
 {
   const cacheOptions = parseCacheOptions({}, options, cache)
-  const { action, getKey, getResultKey } = input
+  const { action, getKey, getResultKey, onFree } = input
 
   assert(typeof getResultKey === 'function', ASSERT_GET_RESULT_KEY)
 
   let cachedKey: string | undefined = undefined
   let cachedResults = Object.create(null)
 
-  cacheDestroyers.push(() =>
+  const clearResult = () =>
   {
+    if (onFree)
+    {
+      for (let resultKey in cachedResults)
+      {
+        onFree.call(store, cachedResults[resultKey])
+      }
+    }
+
     cachedKey = undefined
     cachedResults = Object.create(null)
-  })
+  }
+
+  cacheDestroyers.push(clearResult)
 
   return actionTransform(action, '', handler =>
   {
@@ -452,6 +532,7 @@ export function actionCachedResults <S = any>(input: ActionResultCache<S, S>, ca
 
       if (key !== cachedKey)
       {
+        clearResult()
         cachedKey = key
         cachedResults = Object.create(null)
       }
@@ -753,6 +834,21 @@ function actionTransform <S = any>(action: Action<S, S>, key: string, getHandler
   }
 
   throw ASSERT_ACTION_INVALID
+}
+
+// Converts the input to an action name.
+function toAction (action: ActionRouteNameInput, to, from): string
+{
+  if (typeof action === 'string')
+  {
+    return action
+  }
+  else if (typeof action === 'function')
+  {
+    return action(to, from, store)
+  }
+
+  throw 'Invalid action name or function.'
 }
 
 // Converts the result to a promise. If its not a promise then its truthy value
