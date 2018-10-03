@@ -361,7 +361,7 @@ export const page = {
 
 export const pages = actionsLoading(set.LOADING, {
   // load the user based on ID, check they are valid, then set the user to the store and load its groups from group_ids
-  [page.HOME] ({dispatch, state}, {params}) {
+  [page.HOME] ({dispatch, state}, {to}) {
     return dispatch(get.USER, state.user_id)
       .then(user => dispatch(protect.HOME)
         .then(() => dispatch(relate.USER_GROUPS, user))
@@ -369,9 +369,9 @@ export const pages = actionsLoading(set.LOADING, {
       )
   },
   // load the home, then based on the route load the group, check for access, and if it passes set the group to the store and load the groups users and channels
-  [page.GROUP] ({dispatch}, {params}) {
+  [page.GROUP] ({dispatch}, {to}) {
     return dispatch(page.HOME)
-      .then(() => dispatch(get.GROUP, params.group))
+      .then(() => dispatch(get.GROUP, to.params.group))
       .then(group => dispatch(protect.GROUP, group)
         .then(() => dispatch(relate.GROUP_USERS, group))
         .then(() => dispatch(relate.GROUP_CHANNELS, group))
@@ -379,9 +379,9 @@ export const pages = actionsLoading(set.LOADING, {
       )
   },
   // load the group, then based on the route load the channel, check for access, and if it passes set the channel to the store and load the channel users and messages
-  [page.CHANNEL] ({dispatch}, {params}) {
+  [page.CHANNEL] ({dispatch}, {to}) {
     return dispatch(page.GROUP)
-      .then(() => dispatch(get.CHANNEL, params.channel))
+      .then(() => dispatch(get.CHANNEL, to.params.channel))
       .then(channel => dispatch(protect.CHANNEL, channel)
         .then(() => dispatch(relate.CHANNEL_USERS, channel))
         .then(() => dispatch(get.MESSAGES, channel))
